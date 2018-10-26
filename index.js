@@ -12,7 +12,14 @@ app.use(bodyParser.json());
 // hold the routes
 var router = express.Router();
 
-router.get('/', (req, res) => res.send('Hello World!'));
+const asyncHandler = fn => (req, res, next) =>
+  Promise
+    .resolve(fn(req, res, next))
+    .catch(next);
+
+router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
+
+router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
 
 // error handling
 router.use(function (err, req, res, next) {
