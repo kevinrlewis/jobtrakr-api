@@ -8,6 +8,10 @@ var cookieParser = require('cookie-parser');
 var jwt = require('jsonwebtoken');
 var fs = require('fs');
 
+// helper functions
+var create_user = require('./func/create_user.js');
+var login_user = require('./func/login_user.js');
+
 app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -20,18 +24,24 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next);
 
-const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
+try {
+  const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
+} catch(e) {
+  console.log('error reading key file...');
+  // exit
+}
+
 
 router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
 
 router.post('/login', asyncHandler ( (req, res) => {
-  const email = req.body.email;
-  const password = req.body.password;
+  var email = req.body.email;
+  var password = req.body.password;
 
-  if(validateUser()) {
-    const userId = 1;
+  if(login_user()) {
+    var userId = 1;
 
-    const jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
+    var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
       algorithm: 'RS256',
       expiresIn: 120,
       subject: userId
@@ -48,7 +58,13 @@ router.post('/login', asyncHandler ( (req, res) => {
 }));
 
 router.post('signup', asyncHandler( (req, res) => {
-  
+  var email = req.body.email;
+  var password = req.body.password;
+  var firstname = req.body.firstname;
+  var lastname = req.body.lastname;
+
+  var result = create_user(email, password, firstname, lastname);
+
 }));
 
 // error handling
