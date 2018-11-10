@@ -21,17 +21,17 @@ app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 // DEV ONLY
-app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
-});
-app.options("/*", function(req, res, next){
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
-  res.send(200);
-});
+// app.use(function(req, res, next) {
+//   res.header('Access-Control-Allow-Origin', req.headers.origin);
+//   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+//   next();
+// });
+// app.options("/*", function(req, res, next){
+//   res.header('Access-Control-Allow-Origin', '*');
+//   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+//   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+//   res.sendStatus(200);
+// });
 
 if(process.env.ENVIRONMENT != 'prod') {
   cn = {
@@ -95,8 +95,12 @@ router.post('/login', asyncHandler ( (req, res) => {
 
         // res.status(200).json({ data: jwtBearerToken });
         // cookie based storage
-        res.cookie("SESSIONID", jwtBearerToken, {httpOnly:true, secure:true});
-        res.status(200).json({ message: 'User authenticated.' });
+        res.cookie("SESSIONID", jwtBearerToken, {
+          httpOnly:(process.env.ENVIRONMENT != 'prod' ? true : false)),
+          secure:(process.env.ENVIRONMENT != 'prod' ? true : false)
+        })
+          .status(200)
+          .json({ message: 'OK', id: user_id });
 
       // if there was another reason the user could not login
       } else {
