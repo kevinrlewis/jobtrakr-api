@@ -7,6 +7,7 @@ var compression = require('compression');
 var bodyParser = require('body-parser');
 var cookieParser = require('cookie-parser');
 var jwt = require('jsonwebtoken');
+var expressJwt = require('express-jwt');
 var fs = require('fs');
 var pgp = require('pg-promise')();
 var config = require('./../db_config.json');
@@ -19,6 +20,18 @@ var login_user = require('./func/login_user.js');
 app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+// DEV ONLY
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+app.options("/*", function(req, res, next){
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+  res.send(200);
+});
 
 if(process.env.ENVIRONMENT != 'prod') {
   cn = {
@@ -49,12 +62,11 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next);
 
-try {
-  const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
-} catch(e) {
-  console.log(logt, 'error reading key file...');
-  // exit
-}
+const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
+
+const checkIfAuthenticated = expressJwt({
+  secret: RSA_PRIVATE_KEY
+});
 
 
 router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
@@ -72,8 +84,20 @@ router.post('/login', asyncHandler ( (req, res) => {
         res.json({ message: 'Unauthorized' });
       // if the login_user returned user data
       } else if(data.validate_user !== null) {
-        res.status(200);
-        res.json({ message: 'User logged in.' });
+        // console.log(data.validate_user.user_id);
+        var user_id = data.validate_user.user_id;
+
+        var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
+          algorithm: 'RS256',
+          expiresIn: 120,
+          subject: user_id.toString()
+        });
+
+        // res.status(200).json({ data: jwtBearerToken });
+        // cookie based storage
+        res.cookie("SESSIONID", jwtBearerToken, {httpOnly:true, secure:true});
+        res.status(200).json({ message: 'User authenticated.' });
+
       // if there was another reason the user could not login
       } else {
         console.log(logt, 'failed to validate login for another reason');
@@ -153,12 +177,13 @@ router.post('/signup', asyncHandler( (req, res) => {
 // error handling
 router.use(function (err, req, res, next) {
   console.error(err.stack)
-  res.status(500).send('Something broke!')
+  res.status(500).json('Something broke!')
 });
 
 // missing routes
 router.use(function (req, res, next) {
-  res.status(404).send("Sorry can't find that!")
+  console.log('404 route');
+  res.status(404).json("Sorry can't find that!")
 });
 
 // prefix api

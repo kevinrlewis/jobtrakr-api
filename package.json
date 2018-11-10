@@ -21,6 +21,7 @@
     "compression": "^1.7.3",
     "cookie-parser": "^1.4.3",
     "express": "^4.16.4",
+    "express-jwt": "^5.3.1",
     "helmet": "^3.14.0",
     "jsonwebtoken": "^8.3.0",
     "pg-promise": "^8.5.1"
