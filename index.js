@@ -16,6 +16,7 @@ var cn = {};
 // helper functions
 var create_user = require('./func/create_user.js');
 var login_user = require('./func/login_user.js');
+var get_user = require('./func/get_user.js');
 
 app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -33,7 +34,7 @@ app.use(bodyParser.json());
 //   res.sendStatus(200);
 // });
 
-if(process.env.ENVIRONMENT != 'prod') {
+if(process.env.NODE_ENV != 'prod') {
   cn = {
     host: config.dev.host,
     port: config.dev.port,
@@ -80,8 +81,7 @@ router.post('/login', asyncHandler ( (req, res) => {
       // if the user could not be validated
       if(data.validate_user === null) {
         console.log(logt, 'could not validate login');
-        res.status(401);
-        res.json({ message: 'Unauthorized' });
+        res.status(401).json({ message: 'Unauthorized' });
       // if the login_user returned user data
       } else if(data.validate_user !== null) {
         // console.log(data.validate_user.user_id);
@@ -96,28 +96,25 @@ router.post('/login', asyncHandler ( (req, res) => {
         // res.status(200).json({ data: jwtBearerToken });
         // cookie based storage
         res.cookie("SESSIONID", jwtBearerToken, {
-          httpOnly:(process.env.ENVIRONMENT != 'prod' ? true : false)),
-          secure:(process.env.ENVIRONMENT != 'prod' ? true : false)
-        })
+            httpOnly:(process.env.NODE_ENV === 'prod' ? true : false),
+            secure:(process.env.NODE_ENV === 'prod' ? true : false)
+          })
           .status(200)
           .json({ message: 'OK', id: user_id });
 
       // if there was another reason the user could not login
       } else {
         console.log(logt, 'failed to validate login for another reason');
-        res.status(500);
-        res.json({ message: 'Internal server error.' });
+        res.status(500).json({ message: 'Internal server error.' });
       }
     // on login_user reject
     // cause: query_error, user_does_not_exist
     }, function(err) {
       console.log(logt, 'error:', err.message);
       if(err.message === 'user_does_not_exist') {
-        res.status(404);
-        res.json({ message: 'User does not exist.' });
+        res.status(404).json({ message: 'User does not exist.' });
       } else {
-        res.status(500);
-        res.json({ message: 'Internal server error.' });
+        res.status(500).json({ message: 'Internal server error.' });
       }
     })
 
@@ -150,8 +147,7 @@ router.post('/signup', asyncHandler( (req, res) => {
   // check if any of the values are null or missing
   if(email == null || password == null || firstname == null || lastname == null) {
     // if values are null then the request was bad
-    res.status(400);
-    res.json({ message: 'Bad request.' });
+    res.status(400).json({ message: 'Bad request.' });
   // if all of the values needed are there
   // attempt to create user
   } else {
@@ -160,18 +156,45 @@ router.post('/signup', asyncHandler( (req, res) => {
       // receive promise
       // on success return 201 created
       .then(function() {
-        res.status(201);
-        res.json({ message: 'User created.' });
+        // call helper function to get user info
+        get_user(email, db)
+          // retrieve user data from promise
+          .then(function(data) {
+            console.log(data);
+            var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
+              algorithm: 'RS256',
+              expiresIn: 120,
+              subject: data.get_user.user_id.toString()
+            });
+
+            var dataDisplay = {
+              user_id: data.get_user.user_id,
+              firstname: data.get_user.firstname,
+              lastname: data.get_user.lastname
+            };
+
+            // console.log('environemnt: ', process.env.NODE_ENV);
+            // console.log(process.env.NODE_ENV === 'prod' ? true : false);
+            // set cookie for the response, return 201, and a message
+            res.cookie("SESSIONID", jwtBearerToken, {
+                httpOnly:(process.env.NODE_ENV === 'prod' ? true : false),
+                secure:(process.env.NODE_ENV === 'prod' ? true : false)
+              })
+              .status(201)
+              .json({ message: 'User created.', data: dataDisplay });
+          // if helper function returns an error
+          }, function(err) {
+            console.log(err);
+            res.status(500).json({ message: 'Internal server error.' });
+          });
       // on error then determine error
       }, function(err) {
         // if the user already exists return 409 conflict code
         if(err.message === 'user_exists') {
-          res.status(409);
-          res.json({ message: 'User already exists.' });
+          res.status(409).json({ message: 'User already exists.' });
         // other errors
         } else {
-          res.status(500);
-          res.json({ message: 'Internal server error.'});
+          res.status(500).json({ message: 'Internal server error.'});
         }
       });
   }
