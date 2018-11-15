@@ -1,7 +1,5 @@
-const logt = 'index';
 var express = require('express');
 var app = express();
-var port = 3000;
 var helmet = require('helmet');
 var compression = require('compression');
 var bodyParser = require('body-parser');
@@ -17,6 +15,11 @@ var cn = {};
 var create_user = require('./func/create_user.js');
 var login_user = require('./func/login_user.js');
 var get_user = require('./func/get_user.js');
+
+// globals
+var jwtExp = 604800;
+var port = 3000;
+var logt = 'index';
 
 app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -89,7 +92,7 @@ router.post('/login', asyncHandler ( (req, res) => {
 
         var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
           algorithm: 'RS256',
-          expiresIn: 120,
+          expiresIn: jwtExp,
           subject: user_id.toString()
         });
 
@@ -163,7 +166,7 @@ router.post('/signup', asyncHandler( (req, res) => {
             console.log(data);
             var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
               algorithm: 'RS256',
-              expiresIn: 120,
+              expiresIn: jwtExp,
               subject: data.get_user.user_id.toString()
             });
 
