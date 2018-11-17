@@ -12,9 +12,12 @@ var config = require('./../db_config.json');
 var cn = {};
 
 // helper functions
-var create_user = require('./func/create_user.js');
-var login_user = require('./func/login_user.js');
-var get_user = require('./func/get_user.js');
+var create_user = require('./func/db/create_user.js');
+var login_user = require('./func/db/login_user.js');
+var get_user = require('./func/db/get_user.js');
+var get_user_by_id = require('./func/db/get_user_by_id.js');
+
+var is_valid_variable = require('./func/op/is_valid_variable.js');
 
 // globals
 var jwtExp = 604800;
@@ -38,6 +41,7 @@ app.use(bodyParser.json());
 // });
 
 if(process.env.NODE_ENV != 'prod') {
+  console.log('DEV DB CONFIG');
   cn = {
     host: config.dev.host,
     port: config.dev.port,
@@ -46,6 +50,7 @@ if(process.env.NODE_ENV != 'prod') {
     password: config.dev.password
   };
 } else {
+  console.log('PROD DB CONFIG');
   cn = {
     host: config.host,
     port: config.port,
@@ -201,7 +206,39 @@ router.post('/signup', asyncHandler( (req, res) => {
         }
       });
   }
+}));
 
+router.get('/user/id/:id', asyncHandler( (req, res) => {
+  // variables from body
+  var id = parseInt(req.params.id);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+  // if all of the values needed are there
+  // attempt to return user information
+  } else {
+    // call get_user db helper function
+    get_user_by_id(id, db)
+      .then(function(data) {
+        console.log(data);
+
+        // store data from database that we want to return
+        var dataDisplay = {
+          user_id: data.get_user_by_id.user_id,
+          email: data.get_user_by_id.email,
+          firstname: data.get_user_by_id.first_name,
+          lastname: data.get_user_by_id.last_name
+        };
+
+        res.status(200).json({ message: 'Success.', data: dataDisplay });
+
+      }, function(err) {
+        console.log(err);
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
 }));
 
 // error handling
