@@ -18,6 +18,7 @@ var get_user = require('./func/db/get_user.js');
 var get_user_by_id = require('./func/db/get_user_by_id.js');
 
 var is_valid_variable = require('./func/op/is_valid_variable.js');
+var id_matches = require('./func/op/id_matches.js');
 
 // globals
 var jwtExp = 604800;
@@ -27,6 +28,7 @@ var logt = 'index';
 app.use(helmet());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
+app.use(cookieParser());
 // DEV ONLY
 // app.use(function(req, res, next) {
 //   res.header('Access-Control-Allow-Origin', req.headers.origin);
@@ -72,9 +74,17 @@ const asyncHandler = fn => (req, res, next) =>
     .catch(next);
 
 const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
+const RSA_PUBLIC_KEY = fs.readFileSync('./../j2-jwtRS256.key.pub');
 
 const checkIfAuthenticated = expressJwt({
-  secret: RSA_PRIVATE_KEY
+  secret: RSA_PUBLIC_KEY,
+  algorithms: ['RS256'],
+  getToken: function fromHeaderOrQueryString(req) {
+    if (req.cookies && req.cookies.SESSIONID) {
+      return req.cookies.SESSIONID;
+    }
+    return null
+  }
 });
 
 
@@ -208,7 +218,7 @@ router.post('/signup', asyncHandler( (req, res) => {
   }
 }));
 
-router.get('/user/id/:id', asyncHandler( (req, res) => {
+router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   // variables from body
   var id = parseInt(req.params.id);
 
@@ -216,7 +226,11 @@ router.get('/user/id/:id', asyncHandler( (req, res) => {
   if(!is_valid_variable(id)) {
     // if values are null then the request was bad
     res.status(400).json({ message: 'Bad request.' });
-  // if all of the values needed are there
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
   // attempt to return user information
   } else {
     // call get_user db helper function
@@ -232,14 +246,30 @@ router.get('/user/id/:id', asyncHandler( (req, res) => {
           lastname: data.get_user_by_id.last_name
         };
 
+        // return status and message
         res.status(200).json({ message: 'Success.', data: dataDisplay });
 
       }, function(err) {
-        console.log(err);
+        // return status and message
         res.status(500).json({ message: 'Internal server error.' });
       });
   }
 }));
+
+// router.get('/auth', checkIfAuthenticated, asyncHandler( (req, res) => {
+//   // var token = req.body.idToken;
+//   console.log(req.cookies);
+//
+//   console.log("AUTHENTICATED");
+//
+//   // jwt.verify(token, RSA_PRIVATE_KEY, { algorithms: ['RS256']}, function(err, decoded) {
+//   //   if(err) {
+//   //     console.log('error: ', err);
+//   //   } else {
+//   //     console.log(decoded);
+//   //   }
+//   // });
+// }));
 
 // error handling
 router.use(function (err, req, res, next) {
