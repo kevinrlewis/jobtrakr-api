@@ -11,7 +11,7 @@ module.exports = function(id, db) {
       })
       // on query error, reject and return error
       .catch(function(error) {
-        console.log('ERROR:', error);
+        console.log('SQL ERROR:', error);
         reject(Error(error));
       });
   });

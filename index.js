@@ -178,7 +178,7 @@ router.post('/signup', asyncHandler( (req, res) => {
         get_user(email, db)
           // retrieve user data from promise
           .then(function(data) {
-            console.log(data);
+            console.log("DATA:", data);
             var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
               algorithm: 'RS256',
               expiresIn: jwtExp,
@@ -236,14 +236,22 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
     // call get_user db helper function
     get_user_by_id(id, db)
       .then(function(data) {
-        console.log(data);
+        console.log("DATA:", data);
 
         // store data from database that we want to return
         var dataDisplay = {
           user_id: data.get_user_by_id.user_id,
           email: data.get_user_by_id.email,
           firstname: data.get_user_by_id.first_name,
-          lastname: data.get_user_by_id.last_name
+          lastname: data.get_user_by_id.last_name,
+          share_opportunities: data.get_user_by_id.share_opportunities,
+          share_applied: data.get_user_by_id.share_applied,
+          share_interviews: data.get_user_by_id.share_interviews,
+          share_offers: data.get_user_by_id.share_offers,
+          profile_image: data.get_user_by_id.profile_image,
+          bio: data.get_user_by_id.bio,
+          create_datetime: data.get_user_by_id.create_datetime,
+          update_datetime: data.get_user_by_id.update_datetime
         };
 
         // return status and message
@@ -273,7 +281,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
 
 // error handling
 router.use(function (err, req, res, next) {
-  console.error(err.stack)
+  console.error("ERROR ROUTE:", err.stack);
   res.status(500).json('Something broke!')
 });
 
