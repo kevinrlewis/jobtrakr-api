@@ -7,7 +7,12 @@ var cookieParser = require('cookie-parser');
 var jwt = require('jsonwebtoken');
 var expressJwt = require('express-jwt');
 var fs = require('fs');
+var path = require('path');
+var async = require('async');
 var pgp = require('pg-promise')();
+var multer = require('multer');
+var upload = multer({ dest: 'uploads/' });
+var profile_image = multer({ dest: '.profile_images/' });
 var config = require('./../db_config.json');
 var cn = {};
 
@@ -21,13 +26,13 @@ var is_valid_variable = require('./func/op/is_valid_variable.js');
 var id_matches = require('./func/op/id_matches.js');
 
 // globals
-var jwtExp = 604800;
+var jwtExp = 86400;
 var port = 3000;
 var logt = 'index';
 
 app.use(helmet());
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1000000 }));
+app.use(bodyParser.json({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 // DEV ONLY
 // app.use(function(req, res, next) {
@@ -76,6 +81,7 @@ const asyncHandler = fn => (req, res, next) =>
 const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
 const RSA_PUBLIC_KEY = fs.readFileSync('./../j2-jwtRS256.key.pub');
 
+// middleware to check if the JWT in the cookie is correct for the user
 const checkIfAuthenticated = expressJwt({
   secret: RSA_PUBLIC_KEY,
   algorithms: ['RS256'],
@@ -87,9 +93,11 @@ const checkIfAuthenticated = expressJwt({
   }
 });
 
-
+// base route, just prints hello world currently
+// change to an api information page to display different api calls
 router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
 
+// login route to check user and return cookie if authenticated/exists
 router.post('/login', asyncHandler ( (req, res) => {
   var email = req.body.email;
   var password = req.body.password;
@@ -155,6 +163,8 @@ router.post('/login', asyncHandler ( (req, res) => {
 
 }));
 
+// signup route to create a user and return cookie to authenticate
+// the user
 router.post('/signup', asyncHandler( (req, res) => {
   // variables from body
   var email = req.body.email;
@@ -218,6 +228,7 @@ router.post('/signup', asyncHandler( (req, res) => {
   }
 }));
 
+// user route to get user information and display on the client
 router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   // variables from body
   var id = parseInt(req.params.id);
@@ -264,6 +275,47 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
   }
 }));
 
+// upload route to save files from client and store their relevant information
+// in the database
+router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next) => {
+  console.log("FILES:", req.files);
+
+  var filesArray = req.files;
+
+  // iterate files and perform operations on them
+  // possibly move them to another location and delete them locally
+  async.each(filesArray,
+    function(file, next) {
+      console.log("FILE: ", file);
+      // TODO: move file to secure location
+
+      // TODO: call db function to add file to database in order to track where it
+      // should be used
+      next();
+    },
+    function(err) {
+      if(err){
+        console.log("error ocurred in each",err);
+        res.status(500).json({ message: 'Internal server error.' });
+      }
+      else{
+        console.log("finished processing");
+        res.status(200).json({ message: 'Files uploaded successfully.' });
+      }
+    }
+  );
+}));
+
+// upload profile image route to save profile images from client and store their
+// relevant information in the database
+router.post('/upload_profile_image', profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
+  console.log("FILE:", req.file);
+
+  // TODO: handle file, move to secure location
+
+  // TODO: store file in database
+}));
+
 // router.get('/auth', checkIfAuthenticated, asyncHandler( (req, res) => {
 //   // var token = req.body.idToken;
 //   console.log(req.cookies);
@@ -294,4 +346,5 @@ router.use(function (req, res, next) {
 // prefix api
 app.use('/api', router);
 
+// listen to port
 app.listen(port, () => console.log(`App listening on port ${port}!`));
