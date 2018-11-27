@@ -16,12 +16,14 @@ var profile_image = multer({ dest: '.profile_images/' });
 var config = require('./../db_config.json');
 var cn = {};
 
-// helper functions
+// database functions
 var create_user = require('./func/db/create_user.js');
 var login_user = require('./func/db/login_user.js');
 var get_user = require('./func/db/get_user.js');
 var get_user_by_id = require('./func/db/get_user_by_id.js');
+var insert_file = require('./func/db/insert_file.js');
 
+// helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
 var id_matches = require('./func/op/id_matches.js');
 
@@ -29,6 +31,20 @@ var id_matches = require('./func/op/id_matches.js');
 var jwtExp = 86400;
 var port = 3000;
 var logt = 'index';
+
+const homedir = require('os').homedir();
+const file_dir = homedir + '/.jt_api_files';
+const profile_image_dir = homedir + '/.jt_api_profile_images';
+
+// create file dir if it doesn't exist
+if (!fs.existsSync(file_dir)){
+  fs.mkdirSync(file_dir);
+}
+
+// create profile_image_dir if it doesn't exist
+if (!fs.existsSync(profile_image_dir)){
+  fs.mkdirSync(profile_image_dir);
+}
 
 app.use(helmet());
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1000000 }));
@@ -278,7 +294,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
 // upload route to save files from client and store their relevant information
 // in the database
 router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next) => {
-  console.log("FILES:", req.files);
+  // console.log("FILES:", req.files);
 
   var filesArray = req.files;
 
@@ -287,18 +303,41 @@ router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next)
   async.each(filesArray,
     function(file, next) {
       console.log("FILE: ", file);
-      // TODO: move file to secure location
-
       // TODO: call db function to add file to database in order to track where it
       // should be used
-      next();
+      // call helper function, send db connection
+      insert_file(
+        file.originalname,
+        file.encoding,
+        file.mimetype,
+        file.filename,
+        file_dir + '/' + file.filename,
+        file.size,
+        1,
+        db
+      )
+        // receive promise
+        // on success return 200
+        .then(function() {
+          // move file
+          fs.rename(file.path, file_dir + '/' + file.filename, function(err) {
+            if(err) console.log(err);
+            console.log('successfully moved file...');
+          });
+
+          next();
+        // on error then determine error
+        }, function(err) {
+          console.log(err);
+          res.status(500).json({ message: 'Internal server error.' });
+        });
     },
+    // check if there was an error during the upload process
     function(err) {
-      if(err){
+      if(err) {
         console.log("error ocurred in each",err);
         res.status(500).json({ message: 'Internal server error.' });
-      }
-      else{
+      } else {
         console.log("finished processing");
         res.status(200).json({ message: 'Files uploaded successfully.' });
       }
@@ -312,6 +351,7 @@ router.post('/upload_profile_image', profile_image.single('profile_image'), asyn
   console.log("FILE:", req.file);
 
   // TODO: handle file, move to secure location
+  // var file = IO.newFile("uploads/")
 
   // TODO: store file in database
 }));
