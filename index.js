@@ -21,7 +21,9 @@ var create_user = require('./func/db/create_user.js');
 var login_user = require('./func/db/login_user.js');
 var get_user = require('./func/db/get_user.js');
 var get_user_by_id = require('./func/db/get_user_by_id.js');
-var insert_file = require('./func/db/insert_file.js');
+var add_file = require('./func/db/add_file.js');
+var add_job = require('./func/db/add_job.js');
+var get_opportunities_by_user_id = require('./func/db/get_opportunities_by_user_id.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -188,6 +190,7 @@ router.post('/signup', asyncHandler( (req, res) => {
   var firstname = req.body.firstname;
   var lastname = req.body.lastname;
 
+  // TODO: change this to call is_valid_variable function
   // check if any of the values are null or missing
   if(email == null || password == null || firstname == null || lastname == null) {
     // if values are null then the request was bad
@@ -246,7 +249,7 @@ router.post('/signup', asyncHandler( (req, res) => {
 
 // user route to get user information and display on the client
 router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  // variables from body
+  // variables from params
   var id = parseInt(req.params.id);
 
   // check if any of the values are null or missing
@@ -293,7 +296,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
 
 // upload route to save files from client and store their relevant information
 // in the database
-router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next) => {
+router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHandler( (req, res, next) => {
   // console.log("FILES:", req.files);
 
   var filesArray = req.files;
@@ -306,7 +309,7 @@ router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next)
       // TODO: call db function to add file to database in order to track where it
       // should be used
       // call helper function, send db connection
-      insert_file(
+      add_file(
         file.originalname,
         file.encoding,
         file.mimetype,
@@ -325,7 +328,7 @@ router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next)
             console.log('successfully moved file...');
           });
 
-          next();
+          next(file.filename);
         // on error then determine error
         }, function(err) {
           console.log(err);
@@ -333,13 +336,15 @@ router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next)
         });
     },
     // check if there was an error during the upload process
-    function(err) {
+    function(filename, err) {
+      console.log("ERR:", err);
+      console.log("FILENAME:", filename);
       if(err) {
-        console.log("error ocurred in each",err);
+        console.log("Error occurred in each", err);
         res.status(500).json({ message: 'Internal server error.' });
       } else {
         console.log("finished processing");
-        res.status(200).json({ message: 'Files uploaded successfully.' });
+        res.status(200).json({ message: 'Files uploaded successfully.', file: filename });
       }
     }
   );
@@ -347,7 +352,7 @@ router.post('/upload', upload.array('files', 10), asyncHandler( (req, res, next)
 
 // upload profile image route to save profile images from client and store their
 // relevant information in the database
-router.post('/upload_profile_image', profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
+router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
   console.log("FILE:", req.file);
 
   // TODO: handle file, move to secure location
@@ -370,6 +375,83 @@ router.post('/upload_profile_image', profile_image.single('profile_image'), asyn
 //   //   }
 //   // });
 // }));
+
+router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  console.log(req.body);
+
+  var job_title = req.body.job_title;
+  var company_name = req.body.company_name;
+  var link = req.body.link;
+  var notes = req.body.notes;
+  var type = req.body.type;
+  var attachments = req.body.attachments;
+  var user_id = req.body.user_id;
+
+  if(!is_valid_variable(job_title) || !is_valid_variable(company_name) || !is_valid_variable(link) ||
+    !is_valid_variable(attachments) || !is_valid_variable(type) || !is_valid_variable(notes) ||
+    !is_valid_variable(user_id)) {
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  } else {
+    add_job(job_title, company_name, link, notes, type, attachments, user_id, db)
+      .then(function(data) {
+        console.log("/job DATA:", data);
+        // return status and message
+        res.status(200).json({ message: 'Success.' });
+      }, function(err) {
+        console.log("/job ERROR:", err);
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+
+}));
+
+// get jobs for user by id
+router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {}));
+// get opportunities for user by id
+router.get('/job/opportunity/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  // variables from body
+  var id = parseInt(req.params.id);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to return opportunites tied to the user
+  } else {
+    // call db function to get all opportunities by user id
+    get_opportunities_by_user_id(id, db)
+      // on success
+      .then(function(data) {
+        console.log("/job/opportunity/:id DATA:", data);
+
+        // return status and message
+        res.status(200).json({ message: 'Success.', data: data });
+      // on failure
+      }, function(err) {
+        console.log("/job/opportunity/:id ERROR:", err);
+
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
+// get applied for user by id
+router.get('/job/applied/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {}));
+// get interviews for user by id
+router.get('/job/interview/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {}));
+// get offers for user by id
+router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {}));
 
 // error handling
 router.use(function (err, req, res, next) {
