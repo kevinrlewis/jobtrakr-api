@@ -25,6 +25,7 @@ var add_file = require('./func/db/add_file.js');
 var add_job = require('./func/db/add_job.js');
 var get_opportunities_by_user_id = require('./func/db/get_opportunities_by_user_id.js');
 var get_jobs_by_user_id_and_job_type_id = require('./func/db/get_jobs_by_user_id_and_job_type_id.js');
+var get_jobs_by_user_id = require('./func/db/get_jobs_by_user_id.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -420,8 +421,39 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
 
 }));
 
-// TODO: get jobs for user by id
-router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {}));
+// get jobs for user by id
+router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  // variables from body
+  var id = parseInt(req.params.id);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to return opportunites tied to the user
+  } else {
+    // call db function to get all jobs by user id
+    get_jobs_by_user_id(id, db)
+      // on success
+      .then(function(data) {
+        console.log("/job/id/:id DATA:", data);
+
+        // return status and message
+        res.status(200).json({ message: 'Success.', data: data });
+      // on failure
+      }, function(err) {
+        console.log("/job/id/:id ERROR:", err);
+
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
 
 // get opportunities for user by id
 router.get('/job/opportunity/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
