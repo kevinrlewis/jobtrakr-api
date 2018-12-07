@@ -603,6 +603,27 @@ router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, n
   }
 }));
 
+router.post('/job/:id/update/:job_id/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  // variables from body
+  var user_id = parseInt(req.params.id);
+  var job_id = parseInt(req.params.job_id);
+  var job_type_id = parseInt(req.params.job_type_id);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to update a job
+  } else {
+    // call db function
+  }
+}));
+
 // error handling
 router.use(function (err, req, res, next) {
   console.error("ERROR ROUTE:", err.stack);
