@@ -26,6 +26,7 @@ var add_job = require('./func/db/add_job.js');
 var get_opportunities_by_user_id = require('./func/db/get_opportunities_by_user_id.js');
 var get_jobs_by_user_id_and_job_type_id = require('./func/db/get_jobs_by_user_id_and_job_type_id.js');
 var get_jobs_by_user_id = require('./func/db/get_jobs_by_user_id.js');
+var update_job_type = require('./func/db/update_job_type.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -603,24 +604,33 @@ router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, n
   }
 }));
 
-router.post('/job/:id/update/:job_id/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  console.log("PARAMS:", req.params);
   // variables from body
   var user_id = parseInt(req.params.id);
-  var job_id = parseInt(req.params.job_id);
+  var jobs_id = parseInt(req.params.jobs_id);
   var job_type_id = parseInt(req.params.job_type_id);
 
   // check if any of the values are null or missing
-  if(!is_valid_variable(id)) {
+  if(!is_valid_variable(user_id)) {
     // if values are null then the request was bad
     res.status(400).json({ message: 'Bad request.' });
     return;
   // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
+} else if(!id_matches(user_id, req.cookies.SESSIONID)) {
     res.status(401).json({ message: 'Unauthorized.' });
     return;
   // attempt to update a job
   } else {
     // call db function
+    update_job_type(user_id, jobs_id, job_type_id, db)
+      .then(function(data) {
+        console.log("/job/:id/update/:job_id/:job_type_id DATA:", data);
+        res.status(200).json({ message: 'Success.' });
+      }, function(err) {
+        console.log("/job/:id/update/:job_id/:job_type_id ERROR:", err);
+        res.status(500).json({ message: 'Internal server error.' });
+      });
   }
 }));
 
