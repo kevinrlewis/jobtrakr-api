@@ -11,9 +11,11 @@ var path = require('path');
 var async = require('async');
 var pgp = require('pg-promise')();
 var multer = require('multer');
-var upload = multer({ dest: 'uploads/' });
-var profile_image = multer({ dest: '.profile_images/' });
+var multerS3 = require('multer-s3');
 var config = require('./../db_config.json');
+var AWS = require('aws-sdk');
+AWS.config.loadFromPath('./../aws_cred.json');
+// var s3Cred = require('./../aws_cred.json');
 var cn = {};
 
 // database functions
@@ -40,6 +42,23 @@ var logt = 'index';
 const homedir = require('os').homedir();
 const file_dir = homedir + '/.jt_api_files';
 const profile_image_dir = homedir + '/.jt_api_profile_images';
+const S3 = new AWS.S3();
+
+// var upload = multer({ dest: 'uploads/' });
+var profile_image = multer({ dest: '.profile_images/' });
+var upload = multer({
+  storage: multerS3({
+    s3: S3,
+    bucket: 'jobtrak',
+    metadata: function(req, file, cb) {
+      // console.log("metadata", file);
+      cb(null, { fieldName: file.originalname });
+    },
+    key: function(req, file, cb) {
+      cb(null, 'files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname);
+    }
+  })
+});
 
 // create file dir if it doesn't exist
 if (!fs.existsSync(file_dir)){
@@ -110,7 +129,7 @@ const checkIfAuthenticated = expressJwt({
     if (req.cookies && req.cookies.SESSIONID) {
       return req.cookies.SESSIONID;
     }
-    return null
+    return null;
   }
 });
 
@@ -300,7 +319,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
 // upload route to save files from client and store their relevant information
 // in the database
 router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHandler( (req, res, next) => {
-  // console.log("FILES:", req.files);
+  console.log("FILES:", req.files);
 
   var filesArray = req.files;
   var type = req.body.type;
@@ -322,8 +341,8 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
           file.originalname,
           file.encoding,
           file.mimetype,
-          file.filename,
-          file_dir + '/' + file.filename,
+          file.etag.replace(/['"]+/g, ''),
+          file.location,
           file.size,
           type,
           db
@@ -332,12 +351,12 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
           // on success return 200
           .then(function() {
             // move file
-            fs.rename(file.path, file_dir + '/' + file.filename, function(err) {
-              if(err) console.log(err);
-              console.log('successfully moved file...');
-            });
+            // fs.rename(file.path, file_dir + '/' + file.filename, function(err) {
+            //   if(err) console.log(err);
+            //   console.log('successfully moved file...');
+            // });
 
-            next(file.filename);
+            next(file.etag.replace(/['"]+/g, ''));
           // on error then determine error
           }, function(err) {
             console.log(err);
@@ -346,7 +365,6 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
       },
       // check if there was an error during the upload process
       function(filename, err) {
-        console.log("ERR:", err);
         console.log("FILENAME:", filename);
         if(err) {
           console.log("Error occurred in each", err);
@@ -408,6 +426,7 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
     res.status(401).json({ message: 'Unauthorized.' });
     return;
   } else {
+    console.log('/job: ', attachments);
     add_job(job_title, company_name, link, notes, type, attachments, user_id, db)
       .then(function(data) {
         console.log("/job DATA:", data);

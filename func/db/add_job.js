@@ -8,6 +8,7 @@ module.exports = function(
   user_id,
   db
 ) {
+  console.log('add_job | attachments: ', attachments);
   return new Promise(function(resolve, reject) {
     // run create user function
     db.one('select insert_job(${job_title}, ${company_name}, ${link}, ${notes}, ${type}, ${attachments}, ${user_id})',
