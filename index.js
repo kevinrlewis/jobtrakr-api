@@ -13,6 +13,7 @@ var pgp = require('pg-promise')();
 var multer = require('multer');
 var multerS3 = require('multer-s3');
 var config = require('./../db_config.json');
+var sha256 = require('js-sha256');
 var AWS = require('aws-sdk');
 AWS.config.loadFromPath('./../aws_cred.json');
 // var s3Cred = require('./../aws_cred.json');
@@ -55,7 +56,9 @@ var upload = multer({
       cb(null, { fieldName: file.originalname });
     },
     key: function(req, file, cb) {
-      cb(null, 'files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname);
+      console.log(file);
+      console.log('sha256 s3 path: ', sha256('files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
+      cb(null, sha256('files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
     }
   })
 });
@@ -334,14 +337,12 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
     async.each(filesArray,
       function(file, next) {
         console.log("FILE: ", file);
-        // TODO: call db function to add file to database in order to track where it
-        // should be used
         // call helper function, send db connection
         add_file(
           file.originalname,
           file.encoding,
           file.mimetype,
-          file.etag.replace(/['"]+/g, ''),
+          file.key,
           file.location,
           file.size,
           type,
@@ -350,13 +351,7 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
           // receive promise
           // on success return 200
           .then(function() {
-            // move file
-            // fs.rename(file.path, file_dir + '/' + file.filename, function(err) {
-            //   if(err) console.log(err);
-            //   console.log('successfully moved file...');
-            // });
-
-            next(file.etag.replace(/['"]+/g, ''));
+            next(file.key);
           // on error then determine error
           }, function(err) {
             console.log(err);
@@ -406,7 +401,7 @@ router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single(
 
 // endpoint to add a job
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  console.log(req.body);
+  console.log('/job body: ', req.body);
 
   var job_title = req.body.job_title;
   var company_name = req.body.company_name;
@@ -426,12 +421,12 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
     res.status(401).json({ message: 'Unauthorized.' });
     return;
   } else {
-    console.log('/job: ', attachments);
+    console.log('/job type: ', type);
     add_job(job_title, company_name, link, notes, type, attachments, user_id, db)
       .then(function(data) {
         console.log("/job DATA:", data);
         // return status and message
-        res.status(200).json({ message: 'Success.' });
+        res.status(200).json({ message: 'Success.', data: data });
       }, function(err) {
         console.log("/job ERROR:", err);
         // return status and message
