@@ -30,6 +30,7 @@ var get_opportunities_by_user_id = require('./func/db/get_opportunities_by_user_
 var get_jobs_by_user_id_and_job_type_id = require('./func/db/get_jobs_by_user_id_and_job_type_id.js');
 var get_jobs_by_user_id = require('./func/db/get_jobs_by_user_id.js');
 var update_job_type = require('./func/db/update_job_type.js');
+var delete_file = require('./func/db/delete_file.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -44,13 +45,14 @@ const homedir = require('os').homedir();
 const file_dir = homedir + '/.jt_api_files';
 const profile_image_dir = homedir + '/.jt_api_profile_images';
 const S3 = new AWS.S3();
+const S3_FILE_BUCKET = 'jobtrak';
 
 // var upload = multer({ dest: 'uploads/' });
 var profile_image = multer({ dest: '.profile_images/' });
 var upload = multer({
   storage: multerS3({
     s3: S3,
-    bucket: 'jobtrak',
+    bucket: S3_FILE_BUCKET,
     metadata: function(req, file, cb) {
       // console.log("metadata", file);
       cb(null, { fieldName: file.originalname });
@@ -384,21 +386,6 @@ router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single(
   // TODO: store file in database
 }));
 
-// router.get('/auth', checkIfAuthenticated, asyncHandler( (req, res) => {
-//   // var token = req.body.idToken;
-//   console.log(req.cookies);
-//
-//   console.log("AUTHENTICATED");
-//
-//   // jwt.verify(token, RSA_PRIVATE_KEY, { algorithms: ['RS256']}, function(err, decoded) {
-//   //   if(err) {
-//   //     console.log('error: ', err);
-//   //   } else {
-//   //     console.log(decoded);
-//   //   }
-//   // });
-// }));
-
 // endpoint to add a job
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log('/job body: ', req.body);
@@ -618,9 +605,10 @@ router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, n
   }
 }));
 
+// update job for user under jobs_id where job_type is
 router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log("PARAMS:", req.params);
-  // variables from body
+  // variables from url
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.params.jobs_id);
   var job_type_id = parseInt(req.params.job_type_id);
@@ -631,7 +619,7 @@ router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, async
     res.status(400).json({ message: 'Bad request.' });
     return;
   // check if parameter id matches the token id
-} else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
     res.status(401).json({ message: 'Unauthorized.' });
     return;
   // attempt to update a job
@@ -648,15 +636,93 @@ router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, async
   }
 }));
 
+/*
+  delete a job
+  body:
+    required:
+      - jobs_id
+      - file_name
+*/
+router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+  var jobs_id = parseInt(req.body.jobs_id);
+}));
+
+/*
+  delete a file
+  body:
+    required:
+      - file_name
+      - jobs_id
+*/
+router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  console.log('/:id/delete/file BODY:', req.body);
+  var user_id = parseInt(req.params.id);
+  var file_name = req.body.file_name;
+  var jobs_id = parseInt(req.body.jobs_id);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(user_id) || !is_valid_variable(file_name) || !is_valid_variable(jobs_id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // validate the user
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // all is well
+  } else {
+    var params = {
+        Bucket: S3_FILE_BUCKET,
+        Key: file_name
+    };
+    // call db function
+    delete_file(file_name, jobs_id, db)
+      // receive promise
+      .then(function() {
+        // delete file from s3 first
+        S3.deleteObject(params, function(err, data) {
+          // if there was an error deleting the s3 object then return 500
+          if(err) {
+            console.log('/:id/delete/file ERR:', err);
+            res.status(500).json({ message: 'Internal server error.' });
+            return;
+          }
+
+          // log success and return success
+          console.log('/:id/delete/file S3 DATA: ', data);
+          console.log('/:id/delete/file: FILE DELETED SUCCESSFULLY');
+          res.status(200).json({ message: 'Success' });
+        });
+      // on error then determine error
+      }, function(err) {
+        console.log(err);
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
+
 // error handling
 router.use(function (err, req, res, next) {
-  console.error("ERROR ROUTE:", err.stack);
-  res.status(500).json('Something broke!')
+  console.log('-----------------------------------------------');
+  // console.error("ERROR ROUTE:", err.stack);
+  console.log(err);
+  if(err.status === 401) {
+    res.status(401).json('Unauthorized.');
+    return;
+  } else {
+    res.status(500).json('Internal server error.');
+    return;
+  }
+  console.log('-----------------------------------------------');
 });
 
 // missing routes
 router.use(function (req, res, next) {
+  console.log('-----------------------------------------------');
   console.log('404 route');
+  console.log(req.url);
+  console.log('-----------------------------------------------');
   res.status(404).json("Sorry can't find that!")
 });
 
