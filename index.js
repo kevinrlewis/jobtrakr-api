@@ -457,153 +457,153 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
   }
 }));
 
-// get opportunities for user by id
-router.get('/job/opportunity/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  // constant type (opportunity 1)
-  const type_id = 1;
-
-  // variables from body
-  var id = parseInt(req.params.id);
-
-  // check if any of the values are null or missing
-  if(!is_valid_variable(id)) {
-    // if values are null then the request was bad
-    res.status(400).json({ message: 'Bad request.' });
-    return;
-  // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
-  // attempt to return opportunites tied to the user
-  } else {
-    // call db function to get all opportunities by user id
-    get_jobs_by_user_id_and_job_type_id(id, type_id, db)
-      // on success
-      .then(function(data) {
-        console.log("/job/opportunity/:id DATA:", data);
-
-        // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
-      // on failure
-      }, function(err) {
-        console.log("/job/opportunity/:id ERROR:", err);
-
-        // return status and message
-        res.status(500).json({ message: 'Internal server error.' });
-      });
-  }
-}));
-
-// get applied for user by id
-router.get('/job/applied/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  // constant type (applied 2)
-  const type_id = 2;
-
-  // variables from body
-  var id = parseInt(req.params.id);
-
-  // check if any of the values are null or missing
-  if(!is_valid_variable(id)) {
-    // if values are null then the request was bad
-    res.status(400).json({ message: 'Bad request.' });
-    return;
-  // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
-  // attempt to return applied jobs tied to the user
-  } else {
-    // call db function to get all jobs by user id and type
-    get_jobs_by_user_id_and_job_type_id(id, type_id, db)
-      // on success
-      .then(function(data) {
-        console.log("/job/applied/:id DATA:", data);
-
-        // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
-      // on failure
-      }, function(err) {
-        console.log("/job/applied/:id ERROR:", err);
-
-        // return status and message
-        res.status(500).json({ message: 'Internal server error.' });
-      });
-  }
-}));
-
-// get interviews for user by id
-router.get('/job/interview/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  // constant type (interview 3)
-  const type_id = 3;
-
-  // variables from body
-  var id = parseInt(req.params.id);
-
-  // check if any of the values are null or missing
-  if(!is_valid_variable(id)) {
-    // if values are null then the request was bad
-    res.status(400).json({ message: 'Bad request.' });
-    return;
-  // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
-  // attempt to return applied jobs tied to the user
-  } else {
-    // call db function to get all jobs by user id and type
-    get_jobs_by_user_id_and_job_type_id(id, type_id, db)
-      // on success
-      .then(function(data) {
-        console.log("/job/interview/:id DATA:", data);
-
-        // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
-      // on failure
-      }, function(err) {
-        console.log("/job/interview/:id ERROR:", err);
-
-        // return status and message
-        res.status(500).json({ message: 'Internal server error.' });
-      });
-  }
-}));
-
-// get offers for user by id
-router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  // constant type (offer 4)
-  const type_id = 4;
-
-  // variables from body
-  var id = parseInt(req.params.id);
-
-  // check if any of the values are null or missing
-  if(!is_valid_variable(id)) {
-    // if values are null then the request was bad
-    res.status(400).json({ message: 'Bad request.' });
-    return;
-  // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
-  // attempt to return applied jobs tied to the user
-  } else {
-    // call db function to get all jobs by user id and type
-    get_jobs_by_user_id_and_job_type_id(id, type_id, db)
-      // on success
-      .then(function(data) {
-        console.log("/job/offer/:id DATA:", data);
-
-        // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
-      // on failure
-      }, function(err) {
-        console.log("/job/offer/:id ERROR:", err);
-
-        // return status and message
-        res.status(500).json({ message: 'Internal server error.' });
-      });
-  }
-}));
+// // get opportunities for user by id
+// router.get('/job/opportunity/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+//   // constant type (opportunity 1)
+//   const type_id = 1;
+//
+//   // variables from body
+//   var id = parseInt(req.params.id);
+//
+//   // check if any of the values are null or missing
+//   if(!is_valid_variable(id)) {
+//     // if values are null then the request was bad
+//     res.status(400).json({ message: 'Bad request.' });
+//     return;
+//   // check if parameter id matches the token id
+//   } else if(!id_matches(id, req.cookies.SESSIONID)) {
+//     res.status(401).json({ message: 'Unauthorized.' });
+//     return;
+//   // attempt to return opportunites tied to the user
+//   } else {
+//     // call db function to get all opportunities by user id
+//     get_jobs_by_user_id_and_job_type_id(id, type_id, db)
+//       // on success
+//       .then(function(data) {
+//         console.log("/job/opportunity/:id DATA:", data);
+//
+//         // return status and message
+//         res.status(200).json({ message: 'Success.', data: data });
+//       // on failure
+//       }, function(err) {
+//         console.log("/job/opportunity/:id ERROR:", err);
+//
+//         // return status and message
+//         res.status(500).json({ message: 'Internal server error.' });
+//       });
+//   }
+// }));
+//
+// // get applied for user by id
+// router.get('/job/applied/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+//   // constant type (applied 2)
+//   const type_id = 2;
+//
+//   // variables from body
+//   var id = parseInt(req.params.id);
+//
+//   // check if any of the values are null or missing
+//   if(!is_valid_variable(id)) {
+//     // if values are null then the request was bad
+//     res.status(400).json({ message: 'Bad request.' });
+//     return;
+//   // check if parameter id matches the token id
+//   } else if(!id_matches(id, req.cookies.SESSIONID)) {
+//     res.status(401).json({ message: 'Unauthorized.' });
+//     return;
+//   // attempt to return applied jobs tied to the user
+//   } else {
+//     // call db function to get all jobs by user id and type
+//     get_jobs_by_user_id_and_job_type_id(id, type_id, db)
+//       // on success
+//       .then(function(data) {
+//         console.log("/job/applied/:id DATA:", data);
+//
+//         // return status and message
+//         res.status(200).json({ message: 'Success.', data: data });
+//       // on failure
+//       }, function(err) {
+//         console.log("/job/applied/:id ERROR:", err);
+//
+//         // return status and message
+//         res.status(500).json({ message: 'Internal server error.' });
+//       });
+//   }
+// }));
+//
+// // get interviews for user by id
+// router.get('/job/interview/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+//   // constant type (interview 3)
+//   const type_id = 3;
+//
+//   // variables from body
+//   var id = parseInt(req.params.id);
+//
+//   // check if any of the values are null or missing
+//   if(!is_valid_variable(id)) {
+//     // if values are null then the request was bad
+//     res.status(400).json({ message: 'Bad request.' });
+//     return;
+//   // check if parameter id matches the token id
+//   } else if(!id_matches(id, req.cookies.SESSIONID)) {
+//     res.status(401).json({ message: 'Unauthorized.' });
+//     return;
+//   // attempt to return applied jobs tied to the user
+//   } else {
+//     // call db function to get all jobs by user id and type
+//     get_jobs_by_user_id_and_job_type_id(id, type_id, db)
+//       // on success
+//       .then(function(data) {
+//         console.log("/job/interview/:id DATA:", data);
+//
+//         // return status and message
+//         res.status(200).json({ message: 'Success.', data: data });
+//       // on failure
+//       }, function(err) {
+//         console.log("/job/interview/:id ERROR:", err);
+//
+//         // return status and message
+//         res.status(500).json({ message: 'Internal server error.' });
+//       });
+//   }
+// }));
+//
+// // get offers for user by id
+// router.get('/job/offer/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+//   // constant type (offer 4)
+//   const type_id = 4;
+//
+//   // variables from body
+//   var id = parseInt(req.params.id);
+//
+//   // check if any of the values are null or missing
+//   if(!is_valid_variable(id)) {
+//     // if values are null then the request was bad
+//     res.status(400).json({ message: 'Bad request.' });
+//     return;
+//   // check if parameter id matches the token id
+//   } else if(!id_matches(id, req.cookies.SESSIONID)) {
+//     res.status(401).json({ message: 'Unauthorized.' });
+//     return;
+//   // attempt to return applied jobs tied to the user
+//   } else {
+//     // call db function to get all jobs by user id and type
+//     get_jobs_by_user_id_and_job_type_id(id, type_id, db)
+//       // on success
+//       .then(function(data) {
+//         console.log("/job/offer/:id DATA:", data);
+//
+//         // return status and message
+//         res.status(200).json({ message: 'Success.', data: data });
+//       // on failure
+//       }, function(err) {
+//         console.log("/job/offer/:id ERROR:", err);
+//
+//         // return status and message
+//         res.status(500).json({ message: 'Internal server error.' });
+//       });
+//   }
+// }));
 
 // update job for user under jobs_id where job_type is
 router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
@@ -701,6 +701,13 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
       });
   }
 }));
+
+/**/
+router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+  var jobs_id = parseInt(req.body.jobs_id);
+}));
+
 
 // error handling
 router.use(function (err, req, res, next) {
