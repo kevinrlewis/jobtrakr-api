@@ -31,6 +31,7 @@ var get_jobs_by_user_id_and_job_type_id = require('./func/db/get_jobs_by_user_id
 var get_jobs_by_user_id = require('./func/db/get_jobs_by_user_id.js');
 var update_job_type = require('./func/db/update_job_type.js');
 var delete_file = require('./func/db/delete_file.js');
+var update_job = require('./func/db/update_job.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -702,10 +703,50 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
   }
 }));
 
-/**/
+/*
+  route to update a job
+  body:
+    require:
+      - jobs_id
+      - form_values object
+*/
 router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.body.jobs_id);
+  var form_values = req.body.form_values;
+  console.log(form_values);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(jobs_id) || !is_valid_variable(form_values)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to update a job
+  } else {
+    // call db function
+    update_job(
+      user_id,
+      jobs_id,
+      form_values.jobTitle,
+      form_values.companyName,
+      form_values.link,
+      form_values.notes,
+      form_values.attachments,
+      db
+    ).then(function(data) {
+      console.log('/:id/job/update DATA:', data);
+      // return status and message
+      res.status(200).json({ message: 'Success.', data: data });
+    }, function(err) {
+      console.log('/:id/job/update ERROR:', err);
+      // return status and message
+      res.status(500).json({ message: 'Internal server error.' });
+    })
+  }
 }));
 
 
