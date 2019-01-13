@@ -518,13 +518,36 @@ router.post("/:id/job/delete", checkIfAuthenticated, asyncHandler( (req, res, ne
       db
     ).then(function(data) {
       console.log('/:id/job/delete DATA:', data);
-      if(data.delete_job === '') {
-        // return status and message
-        res.status(200).json({ message: 'Success.' });
-      } else {
-        // return status and message
-        res.status(500).json({ message: 'Internal server error.' });
-      }
+      // TODO: delete files from the returned file_names from the delete
+      var fileNamesArr = data.delete_job;
+      var objects = [];
+      fileNamesArr.forEach(fileName => {
+        objects.push({ Key: fileName });
+      });
+      var params = {
+          Bucket: S3_FILE_BUCKET,
+          Delete: {
+            Objects: objects
+          }
+      };
+      // delete file from s3
+      S3.deleteObjects(params, function(err, data) {
+        // if there was an error deleting the s3 object then return 500
+        if(err) {
+          console.log('/:id/job/delete S3 ERR:', err);
+          res.status(500).json({ message: 'Internal server error.' });
+          return;
+        }
+
+        // log success and return success
+        console.log('/:id/job/delete S3 DATA: ', data);
+        console.log('/:id/job/delete: FILE(S) DELETED SUCCESSFULLY');
+        res.status(200).json({ message: 'Success' });
+      });
+
+      // return status and message
+      // res.status(200).json({ message: 'Success.' });
+
     }, function(err) {
       console.log('/:id/job/delete ERROR:', err);
       // return status and message
@@ -565,7 +588,7 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
     delete_file(file_name, jobs_id, db)
       // receive promise
       .then(function() {
-        // delete file from s3 first
+        // delete file from s3
         S3.deleteObject(params, function(err, data) {
           // if there was an error deleting the s3 object then return 500
           if(err) {
