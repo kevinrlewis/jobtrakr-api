@@ -33,6 +33,7 @@ var update_job_type = require('./func/db/update_job_type.js');
 var delete_file = require('./func/db/delete_file.js');
 var update_job = require('./func/db/update_job.js');
 var delete_job = require('./func/db/delete_job.js');
+var delete_jobs = require('./func/db/delete_jobs.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -144,7 +145,13 @@ const checkIfAuthenticated = expressJwt({
 // change to an api information page to display different api calls
 router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
 
-// login route to check user and return cookie if authenticated/exists
+/*
+  login route to check user and return cookie if authenticated/exists
+  body:
+    required:
+      - email
+      - password
+*/
 router.post('/login', asyncHandler ( (req, res) => {
   var email = req.body.email;
   var password = req.body.password;
@@ -497,7 +504,7 @@ router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, async
       - jobs_id
       - file_name
 */
-router.post("/:id/job/delete", checkIfAuthenticated, asyncHandler( (req, res, next) => {
+router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, next) => {
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.body.jobs_id);
 
@@ -517,39 +524,111 @@ router.post("/:id/job/delete", checkIfAuthenticated, asyncHandler( (req, res, ne
       jobs_id,
       db
     ).then(function(data) {
-      console.log('/:id/job/delete DATA:', data);
-      // TODO: delete files from the returned file_names from the delete
+      console.log('/:id/delete/job DATA:', data);
+
       var fileNamesArr = data.delete_job;
       var objects = [];
-      fileNamesArr.forEach(fileName => {
-        objects.push({ Key: fileName });
-      });
-      var params = {
-          Bucket: S3_FILE_BUCKET,
-          Delete: {
-            Objects: objects
+      if(fileNamesArr.length !== 0) {
+        fileNamesArr.forEach(fileName => {
+          objects.push({ Key: fileName });
+        });
+        var params = {
+            Bucket: S3_FILE_BUCKET,
+            Delete: {
+              Objects: objects
+            }
+        };
+        // delete file from s3
+        S3.deleteObjects(params, function(err, data) {
+          // if there was an error deleting the s3 object then return 500
+          if(err) {
+            console.log('/:id/delete/job S3 ERR:', err);
+            res.status(500).json({ message: 'Internal server error.' });
+            return;
           }
-      };
-      // delete file from s3
-      S3.deleteObjects(params, function(err, data) {
-        // if there was an error deleting the s3 object then return 500
-        if(err) {
-          console.log('/:id/job/delete S3 ERR:', err);
-          res.status(500).json({ message: 'Internal server error.' });
-          return;
-        }
 
-        // log success and return success
-        console.log('/:id/job/delete S3 DATA: ', data);
-        console.log('/:id/job/delete: FILE(S) DELETED SUCCESSFULLY');
-        res.status(200).json({ message: 'Success' });
-      });
-
-      // return status and message
-      // res.status(200).json({ message: 'Success.' });
-
+          // log success and return success
+          console.log('/:id/delete/job S3 DATA: ', data);
+          console.log('/:id/delete/job: FILE(S) DELETED SUCCESSFULLY');
+          res.status(200).json({ message: 'Success' });
+        });
+      }
     }, function(err) {
-      console.log('/:id/job/delete ERROR:', err);
+      console.log('/:id/delete/job ERROR:', err);
+      // return status and message
+      res.status(500).json({ message: 'Internal server error.' });
+    });
+  }
+}));
+
+/*
+  delete multiple jobs
+  body:
+    required:
+      - jobs_id - array
+*/
+router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+  var jobs_id = req.body.jobs_ids;
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(jobs_id)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  } else if(req.body.jobs_id.length === 0) {
+    // if there are no ids to delete then there is nothing to do
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to delete a job
+  } else {
+    var clause = '';
+    var arrLength = req.body.jobs_id.length;
+    for(var i = 0; i < arrLength; i++) {
+      clause = clause + req.body.jobs_id[i] + ',';
+    }
+    clause = clause.slice(0, -1);
+
+    // call db function
+    delete_jobs(
+      clause,
+      db
+    ).then(function(data) {
+      console.log('/:id/delete/jobs DATA:', data);
+
+      var fileNamesArr = data.delete_jobs;
+      var objects = [];
+      if(fileNamesArr.length !== 0) {
+        fileNamesArr.forEach(fileName => {
+          objects.push({ Key: fileName });
+        });
+        var params = {
+            Bucket: S3_FILE_BUCKET,
+            Delete: {
+              Objects: objects
+            }
+        };
+        // delete file from s3
+        S3.deleteObjects(params, function(err, data) {
+          // if there was an error deleting the s3 object then return 500
+          if(err) {
+            console.log('/:id/delete/jobs S3 ERR:', err);
+            res.status(500).json({ message: 'Internal server error.' });
+            return;
+          }
+
+          // log success and return success
+          console.log('/:id/delete/jobs S3 DATA: ', data);
+          console.log('/:id/delete/jobs: FILE(S) DELETED SUCCESSFULLY');
+          res.status(200).json({ message: 'Success' });
+        });
+      }
+    }, function(err) {
+      console.log('/:id/delete/jobs ERROR:', err);
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -560,7 +639,7 @@ router.post("/:id/job/delete", checkIfAuthenticated, asyncHandler( (req, res, ne
   delete a file
   body:
     required:
-      - file_name
+      - file_name - JSON array
       - jobs_id
 */
 router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, next) => {
@@ -569,9 +648,15 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
   var file_name = req.body.file_name;
   var jobs_id = parseInt(req.body.jobs_id);
 
+  console.log(req.body.file_name.length);
+
   // check if any of the values are null or missing
   if(!is_valid_variable(user_id) || !is_valid_variable(file_name) || !is_valid_variable(jobs_id)) {
     // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  } else if(req.body.file_name.length === 0) {
+    // if values are empty then we don't have anything to delete
     res.status(400).json({ message: 'Bad request.' });
     return;
   // validate the user
@@ -580,33 +665,37 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
     return;
   // all is well
   } else {
-    var params = {
-        Bucket: S3_FILE_BUCKET,
-        Key: file_name
-    };
-    // call db function
-    delete_file(file_name, jobs_id, db)
-      // receive promise
-      .then(function() {
-        // delete file from s3
-        S3.deleteObject(params, function(err, data) {
-          // if there was an error deleting the s3 object then return 500
-          if(err) {
-            console.log('/:id/delete/file ERR:', err);
-            res.status(500).json({ message: 'Internal server error.' });
-            return;
-          }
+    req.body.file_name.forEach(file => {
+      var params = {
+          Bucket: S3_FILE_BUCKET,
+          Key: file
+      };
+      // call db function
+      delete_file(file, jobs_id, db)
+        // receive promise
+        .then(function() {
+          // delete file from s3
+          S3.deleteObject(params, function(err, data) {
+            // if there was an error deleting the s3 object then return 500
+            if(err) {
+              console.log('/:id/delete/file ERR:', err);
+              res.status(500).json({ message: 'Internal server error.' });
+              return;
+            }
 
-          // log success and return success
-          console.log('/:id/delete/file S3 DATA: ', data);
-          console.log('/:id/delete/file: FILE DELETED SUCCESSFULLY');
-          res.status(200).json({ message: 'Success' });
+            // log s3 data
+            console.log('/:id/delete/file S3 DATA: ', data);
+          });
+        // on error then determine error
+        }, function(err) {
+          console.log(err);
+          res.status(500).json({ message: 'Internal server error.' });
         });
-      // on error then determine error
-      }, function(err) {
-        console.log(err);
-        res.status(500).json({ message: 'Internal server error.' });
-      });
+    });
+
+    // log success and return success
+    console.log('/:id/delete/file: FILE(S) DELETED SUCCESSFULLY');
+    res.status(200).json({ message: 'Success' });
   }
 }));
 
