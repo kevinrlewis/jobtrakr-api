@@ -528,7 +528,7 @@ router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, ne
 
       var fileNamesArr = data.delete_job;
       var objects = [];
-      if(fileNamesArr.length !== 0) {
+      if(fileNamesArr !== null && fileNamesArr.length !== 0) {
         fileNamesArr.forEach(fileName => {
           objects.push({ Key: fileName });
         });
@@ -549,9 +549,9 @@ router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, ne
 
           // log success and return success
           console.log('/:id/delete/job S3 DATA: ', data);
-          console.log('/:id/delete/job: FILE(S) DELETED SUCCESSFULLY');
-          res.status(200).json({ message: 'Success' });
         });
+        console.log('/:id/delete/job: JOB DELETED SUCCESSFULLY');
+        res.status(200).json({ message: 'Success' });
       }
     }, function(err) {
       console.log('/:id/delete/job ERROR:', err);
@@ -576,7 +576,7 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
     // if values are null then the request was bad
     res.status(400).json({ message: 'Bad request.' });
     return;
-  } else if(req.body.jobs_id.length === 0) {
+  } else if(jobs_id.length === 0) {
     // if there are no ids to delete then there is nothing to do
     res.status(400).json({ message: 'Bad request.' });
     return;
@@ -586,10 +586,11 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
     return;
   // attempt to delete a job
   } else {
+    // create clause to add to query
     var clause = '';
-    var arrLength = req.body.jobs_id.length;
+    var arrLength = jobs_id.length;
     for(var i = 0; i < arrLength; i++) {
-      clause = clause + req.body.jobs_id[i] + ',';
+      clause = clause + jobs_id[i] + ',';
     }
     clause = clause.slice(0, -1);
 
@@ -600,9 +601,10 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
     ).then(function(data) {
       console.log('/:id/delete/jobs DATA:', data);
 
+      //
       var fileNamesArr = data.delete_jobs;
       var objects = [];
-      if(fileNamesArr.length !== 0) {
+      if(fileNamesArr !== null && fileNamesArr.length !== 0) {
         fileNamesArr.forEach(fileName => {
           objects.push({ Key: fileName });
         });
@@ -623,10 +625,10 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
 
           // log success and return success
           console.log('/:id/delete/jobs S3 DATA: ', data);
-          console.log('/:id/delete/jobs: FILE(S) DELETED SUCCESSFULLY');
-          res.status(200).json({ message: 'Success' });
         });
       }
+      console.log('/:id/delete/jobs: JOB(S) DELETED SUCCESSFULLY');
+      res.status(200).json({ message: 'Success' });
     }, function(err) {
       console.log('/:id/delete/jobs ERROR:', err);
       // return status and message
