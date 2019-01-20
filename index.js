@@ -12,10 +12,10 @@ var async = require('async');
 var pgp = require('pg-promise')();
 var multer = require('multer');
 var multerS3 = require('multer-s3');
-var config = require('./../db_config.json');
+var config = require('./db_config.json');
 var sha256 = require('js-sha256');
 var AWS = require('aws-sdk');
-AWS.config.loadFromPath('./../aws_cred.json');
+AWS.config.loadFromPath('./aws_cred.json');
 // var s3Cred = require('./../aws_cred.json');
 var cn = {};
 
@@ -126,8 +126,8 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next);
 
-const RSA_PRIVATE_KEY = fs.readFileSync('./../j-jwtRS256.key');
-const RSA_PUBLIC_KEY = fs.readFileSync('./../j2-jwtRS256.key.pub');
+const RSA_PRIVATE_KEY = fs.readFileSync('./j-jwtRS256.key');
+const RSA_PUBLIC_KEY = fs.readFileSync('./j2-jwtRS256.key.pub');
 
 // middleware to check if the JWT in the cookie is correct for the user
 const checkIfAuthenticated = expressJwt({
