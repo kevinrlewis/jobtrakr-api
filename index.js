@@ -12,10 +12,17 @@ var async = require('async');
 var pgp = require('pg-promise')();
 var multer = require('multer');
 var multerS3 = require('multer-s3');
-var config = require('./db_config.json');
+var config = null;
 var sha256 = require('js-sha256');
 var AWS = require('aws-sdk');
-AWS.config.loadFromPath('./aws_cred.json');
+console.log(process.env.NODE_ENV);
+if(process.env.NODE_ENV === 'prod') {
+  AWS.config.loadFromPath('./aws_cred.json');
+  config = require('./db_config.json');
+} else {
+  AWS.config.loadFromPath('./../aws_cred.json');
+  config = require('./../db_config.json');
+}
 // var s3Cred = require('./../aws_cred.json');
 var cn = {};
 
@@ -45,13 +52,11 @@ var port = 3000;
 var logt = 'index';
 
 const homedir = require('os').homedir();
-const file_dir = homedir + '/.jt_api_files';
-const profile_image_dir = homedir + '/.jt_api_profile_images';
 const S3 = new AWS.S3();
-const S3_FILE_BUCKET = 'jobtrak';
+const S3_FILE_BUCKET = (process.env.NODE_ENV === 'prod' ? 'jobtrak-prod' : 'jobtrak');
 
 // var upload = multer({ dest: 'uploads/' });
-var profile_image = multer({ dest: '.profile_images/' });
+// var profile_image = multer({ dest: '.profile_images/' });
 var upload = multer({
   storage: multerS3({
     s3: S3,
@@ -67,16 +72,6 @@ var upload = multer({
     }
   })
 });
-
-// create file dir if it doesn't exist
-if (!fs.existsSync(file_dir)){
-  fs.mkdirSync(file_dir);
-}
-
-// create profile_image_dir if it doesn't exist
-if (!fs.existsSync(profile_image_dir)){
-  fs.mkdirSync(profile_image_dir);
-}
 
 app.use(helmet());
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1000000 }));
@@ -126,8 +121,11 @@ const asyncHandler = fn => (req, res, next) =>
     .resolve(fn(req, res, next))
     .catch(next);
 
-const RSA_PRIVATE_KEY = fs.readFileSync('./j-jwtRS256.key');
-const RSA_PUBLIC_KEY = fs.readFileSync('./j2-jwtRS256.key.pub');
+var privateKeyPath = ((process.env.NODE_ENV === 'prod') ? './j-jwtRS256.key' : './../j-jwtRS256.key');
+var publicKeyPath = ((process.env.NODE_ENV === 'prod') ? './j2-jwtRS256.key.pub' : './../j2-jwtRS256.key.pub');
+
+const RSA_PRIVATE_KEY = fs.readFileSync(privateKeyPath);
+const RSA_PUBLIC_KEY = fs.readFileSync(publicKeyPath);
 
 // middleware to check if the JWT in the cookie is correct for the user
 const checkIfAuthenticated = expressJwt({
@@ -326,6 +324,11 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
       }, function(err) {
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
+      })
+      .catch(function(error) {
+        console.log("get_user_by_id PROMISE ERROR:", error);
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
       });
   }
 }));
@@ -386,14 +389,14 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
 
 // upload profile image route to save profile images from client and store their
 // relevant information in the database
-router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
-  console.log("FILE:", req.file);
-
-  // TODO: handle file, move to secure location
-  // var file = IO.newFile("uploads/")
-
-  // TODO: store file in database
-}));
+// router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
+//   console.log("FILE:", req.file);
+//
+//   // TODO: handle file, move to secure location
+//   // var file = IO.newFile("uploads/")
+//
+//   // TODO: store file in database
+// }));
 
 // endpoint to add a job
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {

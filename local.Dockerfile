@@ -1,4 +1,5 @@
 # STEP 1 build static website
+# install initial environment reqs
 FROM node:alpine as builder
 RUN apk update && apk add --no-cache git
 RUN apk add --no-cache --virtual .gyp \
@@ -9,24 +10,31 @@ RUN apk add --no-cache --virtual .gyp \
     && apk del .gyp
 RUN export PATH="$PATH:/usr/local/bin/python"
 
-# Create app directory
+# set environmental variables
+ENV NODE_ENV=prod
+
+# create app directory
 WORKDIR /usr/src/app
 RUN ls
-# Install app dependencies
+
+# copy required files
 COPY jobtrakr-api/package*.json ./
 COPY aws_cred.json .
 COPY db_config.json .
 COPY j-jwtRS256.key .
 COPY j2-jwtRS256.key.pub .
-
 RUN ls
+
+# install dependencies
 RUN npm set progress=false && npm install
 RUN ls /usr/src/app
-# Copy project files into the docker image
+
+# copy project files into the docker image
 COPY ./jobtrakr-api .
+RUN ls .
 
-RUN ls /usr/src/app
-
+# expose port 3000
 EXPOSE 3000
 
+# command to run image
 CMD [ "npm", "start" ]
