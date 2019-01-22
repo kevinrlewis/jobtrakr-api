@@ -15,7 +15,6 @@ var multerS3 = require('multer-s3');
 var config = null;
 var sha256 = require('js-sha256');
 var AWS = require('aws-sdk');
-console.log(process.env.NODE_ENV);
 if(process.env.NODE_ENV === 'prod') {
   AWS.config.loadFromPath('./aws_cred.json');
   config = require('./db_config.json');
@@ -41,6 +40,7 @@ var delete_file = require('./func/db/delete_file.js');
 var update_job = require('./func/db/update_job.js');
 var delete_job = require('./func/db/delete_job.js');
 var delete_jobs = require('./func/db/delete_jobs.js');
+var add_profile_image = require('./func/db/add_profile_image.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -55,8 +55,7 @@ const homedir = require('os').homedir();
 const S3 = new AWS.S3();
 const S3_FILE_BUCKET = (process.env.NODE_ENV === 'prod' ? 'jobtrak-prod' : 'jobtrak');
 
-// var upload = multer({ dest: 'uploads/' });
-// var profile_image = multer({ dest: '.profile_images/' });
+// handle files attached to jobs
 var upload = multer({
   storage: multerS3({
     s3: S3,
@@ -73,23 +72,30 @@ var upload = multer({
   })
 });
 
+// handle profile image uploads
+var profile_image_upload = multer({
+  storage: multerS3({
+    s3: S3,
+    bucket: S3_FILE_BUCKET,
+    metadata: function(req, file, cb) {
+      // console.log("metadata", file);
+      cb(null, { fieldName: file.originalname });
+    },
+    key: function(req, file, cb) {
+      console.log(file);
+      console.log('sha256 s3 path: ', sha256('profile_images/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
+      cb(null, sha256('profile_images/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
+    }
+  })
+});
+
+// other uses
 app.use(helmet());
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1000000 }));
 app.use(bodyParser.json({ limit: '50mb', extended: true }));
 app.use(cookieParser());
-// DEV ONLY
-// app.use(function(req, res, next) {
-//   res.header('Access-Control-Allow-Origin', req.headers.origin);
-//   res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-//   next();
-// });
-// app.options("/*", function(req, res, next){
-//   res.header('Access-Control-Allow-Origin', '*');
-//   res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS');
-//   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
-//   res.sendStatus(200);
-// });
 
+// setup database configuration
 if(process.env.NODE_ENV != 'prod') {
   console.log('DEV DB CONFIG');
   cn = {
@@ -110,20 +116,23 @@ if(process.env.NODE_ENV != 'prod') {
   };
 }
 
+// initialize connection to database
 var db = pgp(cn);
-
 
 // hold the routes
 var router = express.Router();
 
+// handle asynchronous calls
 const asyncHandler = fn => (req, res, next) =>
   Promise
     .resolve(fn(req, res, next))
     .catch(next);
 
+// key paths for signing
 var privateKeyPath = ((process.env.NODE_ENV === 'prod') ? './j-jwtRS256.key' : './../j-jwtRS256.key');
 var publicKeyPath = ((process.env.NODE_ENV === 'prod') ? './j2-jwtRS256.key.pub' : './../j2-jwtRS256.key.pub');
 
+// key constants
 const RSA_PRIVATE_KEY = fs.readFileSync(privateKeyPath);
 const RSA_PUBLIC_KEY = fs.readFileSync(publicKeyPath);
 
@@ -387,16 +396,50 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
   }
 }));
 
-// upload profile image route to save profile images from client and store their
-// relevant information in the database
-// router.post('/upload_profile_image', checkIfAuthenticated, profile_image.single('profile_image'), asyncHandler( (req, res, next) => {
-//   console.log("FILE:", req.file);
-//
-//   // TODO: handle file, move to secure location
-//   // var file = IO.newFile("uploads/")
-//
-//   // TODO: store file in database
-// }));
+/*
+  upload profile image route to save profile images from client and store their
+  relevant information in the database
+  required:
+    body:
+      file: file to upload as the profile image
+      user_id: user to attach image to
+*/
+router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.single('profile_image', 1), asyncHandler( (req, res, next) => {
+  console.log("FILE:", req.file);
+
+  var file = req.file;
+  var user_id = req.body.user_id;
+
+  if(!is_valid_variable(file) || !is_valid_variable(user_id)) {
+    console.log(!is_valid_variable(file));
+    console.log(!is_valid_variable(user_id));
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  } else {
+    // call helper function, send db connection
+    add_profile_image(
+      file.originalname,
+      file.encoding,
+      file.mimetype,
+      file.key,
+      file.location,
+      file.size,
+      1,
+      user_id,
+      db
+    )
+      // receive promise
+      // on success return 200
+      .then(function() {
+        res.status(200).json({ message: 'Success.'});
+      // on error then determine error
+      }, function(err) {
+        console.log(err);
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
 
 // endpoint to add a job
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
@@ -750,6 +793,9 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
   }
 }));
 
+router.post('/logs', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  console.log(req.body);
+}));
 
 // error handling
 router.use(function (err, req, res, next) {
