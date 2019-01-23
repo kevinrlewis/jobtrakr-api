@@ -310,25 +310,8 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
     get_user_by_id(id, db)
       .then(function(data) {
         console.log("DATA:", data);
-
-        // store data from database that we want to return
-        var dataDisplay = {
-          user_id: data.get_user_by_id.user_id,
-          email: data.get_user_by_id.email,
-          firstname: data.get_user_by_id.first_name,
-          lastname: data.get_user_by_id.last_name,
-          share_opportunities: data.get_user_by_id.share_opportunities,
-          share_applied: data.get_user_by_id.share_applied,
-          share_interviews: data.get_user_by_id.share_interviews,
-          share_offers: data.get_user_by_id.share_offers,
-          profile_image: data.get_user_by_id.profile_image,
-          bio: data.get_user_by_id.bio,
-          create_datetime: data.get_user_by_id.create_datetime,
-          update_datetime: data.get_user_by_id.update_datetime
-        };
-
         // return status and message
-        res.status(200).json({ message: 'Success.', data: dataDisplay });
+        res.status(200).json({ message: 'Success.', data: data.get_user_by_id });
 
       }, function(err) {
         // return status and message
@@ -411,8 +394,6 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
   var user_id = req.body.user_id;
 
   if(!is_valid_variable(file) || !is_valid_variable(user_id)) {
-    console.log(!is_valid_variable(file));
-    console.log(!is_valid_variable(user_id));
     // if values are null then the request was bad
     res.status(400).json({ message: 'Bad request.' });
     return;
@@ -432,7 +413,7 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
       // receive promise
       // on success return 200
       .then(function() {
-        res.status(200).json({ message: 'Success.'});
+        res.status(200).json({ message: 'Success.', file: file.key });
       // on error then determine error
       }, function(err) {
         console.log(err);
