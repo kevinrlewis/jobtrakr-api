@@ -41,6 +41,7 @@ var update_job = require('./func/db/update_job.js');
 var delete_job = require('./func/db/delete_job.js');
 var delete_jobs = require('./func/db/delete_jobs.js');
 var add_profile_image = require('./func/db/add_profile_image.js');
+var update_user_sharing = require('./func/db/update_user_sharing.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -761,6 +762,55 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
       form_values.link,
       form_values.notes,
       form_values.files,
+      db
+    ).then(function(data) {
+      console.log('/:id/job/update DATA:', data);
+      // return status and message
+      res.status(200).json({ message: 'Success.', data: data });
+    }, function(err) {
+      console.log('/:id/job/update ERROR:', err);
+      // return status and message
+      res.status(500).json({ message: 'Internal server error.' });
+    });
+  }
+}));
+
+/*
+  route to update a job
+  body:
+    require:
+      - jobs_id
+      - form_values object
+*/
+router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+  var form_values = req.body.form_values;
+  console.log(form_values);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(form_values)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to update user
+  } else {
+
+    let share_opportunities = (form_values.shareOpportunities == true || form_values.shareOpportunities == 1) ? 1 : 0;
+    let share_applied = (form_values.shareApplied == true || form_values.shareApplied == 1) ? 1 : 0;
+    let share_interviews = (form_values.shareInterviews == true || form_values.shareInterviews == 1) ? 1 : 0;
+    let share_offers = (form_values.shareOffers == true || form_values.shareOffers == 1) ? 1 : 0;
+
+    // call db function
+    update_user_sharing(
+      user_id,
+      share_opportunities,
+      share_applied,
+      share_interviews,
+      share_offers,
       db
     ).then(function(data) {
       console.log('/:id/job/update DATA:', data);
