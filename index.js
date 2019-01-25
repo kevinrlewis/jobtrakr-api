@@ -42,6 +42,8 @@ var delete_job = require('./func/db/delete_job.js');
 var delete_jobs = require('./func/db/delete_jobs.js');
 var add_profile_image = require('./func/db/add_profile_image.js');
 var update_user_sharing = require('./func/db/update_user_sharing.js');
+var update_user_profile = require('./func/db/update_user_profile.js');
+var user_exists = require('./func/db/user_exists.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -776,10 +778,9 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
 }));
 
 /*
-  route to update a job
+  route to update a users sharing settings
   body:
-    require:
-      - jobs_id
+    required:
       - form_values object
 */
 router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
@@ -813,16 +814,76 @@ router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res
       share_offers,
       db
     ).then(function(data) {
-      console.log('/:id/job/update DATA:', data);
+      console.log('/:id/share/update DATA:', data);
       // return status and message
       res.status(200).json({ message: 'Success.', data: data });
     }, function(err) {
-      console.log('/:id/job/update ERROR:', err);
+      console.log('/:id/share/update ERROR:', err);
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
   }
 }));
+
+/*
+  route to update a profile
+  body:
+    required:
+      - form_values object
+*/
+router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+  var form_values = req.body.form_values;
+  console.log(form_values);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(form_values)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  } else if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to update user
+  } else {
+
+    user_exists(
+      form_values.email,
+      db
+    ).then(data => {
+      console.log(data);
+      if(data.result) {
+        // return status and message
+        res.status(409).json({ message: 'User exists.' });
+        return;
+      } else {        
+        // update profile
+        update_user_profile(
+          user_id,
+          form_values.email,
+          form_values.firstName,
+          form_values.lastName,
+          form_values.bio,
+          db
+        ).then(function(data) {
+          console.log('/:id/profile/update DATA:', data);
+          // return status and message
+          res.status(200).json({ message: 'Success.', data: data });
+        }, function(err) {
+          console.log('/:id/profile/update ERROR:', err);
+          // return status and message
+          res.status(500).json({ message: 'Internal server error.' });
+        });
+      }
+    }, err => {
+      console.log('/:id/profile/update ERROR:', err);
+      // return status and message
+      res.status(500).json({ message: 'Internal server error.' });
+    });
+  }
+}));
+
 
 router.post('/logs', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log(req.body);
