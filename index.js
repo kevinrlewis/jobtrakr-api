@@ -482,7 +482,7 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
         console.log("/job/id/:id DATA:", data);
 
         // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
+        res.status(200).json({ message: 'Success.', data: data.get_jobs_to_share_by_user_id });
         return;
       },
       err => {
@@ -501,7 +501,7 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
         console.log("/job/id/:id DATA:", data);
 
         // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
+        res.status(200).json({ message: 'Success.', data: data.get_jobs_by_user_id });
         return;
       // on failure
       },
