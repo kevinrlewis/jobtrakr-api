@@ -44,6 +44,7 @@ var add_profile_image = require('./func/db/add_profile_image.js');
 var update_user_sharing = require('./func/db/update_user_sharing.js');
 var update_user_profile = require('./func/db/update_user_profile.js');
 var user_exists = require('./func/db/user_exists.js');
+var get_jobs_to_share_by_user_id = require('./func/db/get_jobs_to_share_by_user_id.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -304,9 +305,9 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
     res.status(400).json({ message: 'Bad request.' });
     return;
   // check if parameter id matches the token id
-  } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
+  // } else if(!id_matches(id, req.cookies.SESSIONID)) {
+  //   res.status(401).json({ message: 'Unauthorized.' });
+  //   return;
   // attempt to return user information
   } else {
     // call get_user db helper function
@@ -474,24 +475,42 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
     return;
   // check if parameter id matches the token id
   } else if(!id_matches(id, req.cookies.SESSIONID)) {
-    res.status(401).json({ message: 'Unauthorized.' });
-    return;
+    // check if user allows other people to look at jobs
+    // res.status(401).json({ message: 'Unauthorized.' });
+    get_jobs_to_share_by_user_id(id, db)
+      .then(data => {
+        console.log("/job/id/:id DATA:", data);
+
+        // return status and message
+        res.status(200).json({ message: 'Success.', data: data });
+        return;
+      },
+      err => {
+        console.log("/job/id/:id ERROR:", err);
+
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+        return;
+      });
   // attempt to return opportunites tied to the user
   } else {
     // call db function to get all jobs by user id
     get_jobs_by_user_id(id, db)
       // on success
-      .then(function(data) {
+      .then(data => {
         console.log("/job/id/:id DATA:", data);
 
         // return status and message
         res.status(200).json({ message: 'Success.', data: data });
+        return;
       // on failure
-      }, function(err) {
+      },
+      err => {
         console.log("/job/id/:id ERROR:", err);
 
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
+        return;
       });
   }
 }));
@@ -857,7 +876,7 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
         // return status and message
         res.status(409).json({ message: 'User exists.' });
         return;
-      } else {        
+      } else {
         // update profile
         update_user_profile(
           user_id,
