@@ -45,6 +45,7 @@ var update_user_sharing = require('./func/db/update_user_sharing.js');
 var update_user_profile = require('./func/db/update_user_profile.js');
 var user_exists = require('./func/db/user_exists.js');
 var get_jobs_to_share_by_user_id = require('./func/db/get_jobs_to_share_by_user_id.js');
+var get_users = require('./func/db/get_users.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -152,8 +153,10 @@ const checkIfAuthenticated = expressJwt({
   }
 });
 
-// base route, just prints hello world currently
-// change to an api information page to display different api calls
+/*
+  base route, just prints hello world currently
+  change to an api information page to display different api calls
+*/
 router.get('/', asyncHandler ( (req, res, next) => res.send('Hello World!')) );
 
 /*
@@ -228,8 +231,10 @@ router.post('/login', asyncHandler ( (req, res) => {
 
 }));
 
-// signup route to create a user and return cookie to authenticate
-// the user
+/*
+  signup route to create a user and return cookie to authenticate
+  the user
+*/
 router.post('/signup', asyncHandler( (req, res) => {
   // variables from body
   var email = req.body.email;
@@ -294,7 +299,9 @@ router.post('/signup', asyncHandler( (req, res) => {
   }
 }));
 
-// user route to get user information and display on the client
+/*
+  user route to get user information and display on the client
+*/
 router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   // variables from params
   var id = parseInt(req.params.id);
@@ -329,8 +336,50 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
   }
 }));
 
-// upload route to save files from client and store their relevant information
-// in the database
+/*
+  route to get all users
+  required:
+    amount: integer (max 10)
+*/
+router.post('/users', checkIfAuthenticated, asyncHandler((req, res, next) => {
+  var max = 10;
+
+  // variables from body
+  var amount = parseInt(req.body.amount);
+
+  // check if any of the values are null or missing
+  if(!is_valid_variable(amount) || !(amount <= max)) {
+    // if values are null then the request was bad
+    res.status(400).json({ message: 'Bad request.' });
+    return;
+  // check if parameter id matches the token id
+  // } else if(!id_matches(id, req.cookies.SESSIONID)) {
+  //   res.status(401).json({ message: 'Unauthorized.' });
+  //   return;
+  // attempt to return user information
+  } else {
+    // call get_user db helper function
+    get_users(amount, db)
+      .then(function(data) {
+        console.log("DATA:", data);
+        // return status and message
+        res.status(200).json({ message: 'Success.', data: data.get_users });
+      }, function(err) {
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      })
+      .catch(function(error) {
+        console.log("get_users PROMISE ERROR:", error);
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
+
+/*
+  upload route to save files from client and store their relevant information
+  in the database
+*/
 router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHandler( (req, res, next) => {
   console.log("FILES:", req.files);
 
@@ -426,7 +475,9 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
   }
 }));
 
-// endpoint to add a job
+/*
+  endpoint to add a job
+*/
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log('/job body: ', req.body);
 
@@ -463,7 +514,9 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
 
 }));
 
-// get jobs for user by id
+/*
+  get jobs for user by id
+*/
 router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   // variables from body
   var id = parseInt(req.params.id);
@@ -515,7 +568,9 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
   }
 }));
 
-// update job for user under jobs_id where job_type is
+/*
+  update job for user under jobs_id where job_type is
+*/
 router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log("PARAMS:", req.params);
   // variables from url
@@ -904,9 +959,6 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
 }));
 
 
-router.post('/logs', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  console.log(req.body);
-}));
 
 // error handling
 router.use(function (err, req, res, next) {
