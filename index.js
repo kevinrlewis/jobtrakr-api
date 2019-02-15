@@ -878,6 +878,7 @@ router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res
     let share_applied = (form_values.shareApplied == true || form_values.shareApplied == 1) ? 1 : 0;
     let share_interviews = (form_values.shareInterviews == true || form_values.shareInterviews == 1) ? 1 : 0;
     let share_offers = (form_values.shareOffers == true || form_values.shareOffers == 1) ? 1 : 0;
+    let is_private = (form_values.isPrivate == true || form_values.isPrivate == 1) ? 1 : 0;
 
     // call db function
     update_user_sharing(
@@ -886,6 +887,7 @@ router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res
       share_applied,
       share_interviews,
       share_offers,
+      is_private,
       db
     ).then(function(data) {
       console.log('/:id/share/update DATA:', data);
