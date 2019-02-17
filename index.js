@@ -320,7 +320,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
     // call get_user db helper function
     get_user_by_id(id, db)
       .then(function(data) {
-        console.log("DATA:", data);
+        console.log("/user/id/:id DATA:", data);
         // return status and message
         res.status(200).json({ message: 'Success.', data: data.get_user_by_id });
 
@@ -655,6 +655,8 @@ router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, ne
           console.log('/:id/delete/job S3 DATA: ', data);
         });
         console.log('/:id/delete/job: JOB DELETED SUCCESSFULLY');
+        res.status(200).json({ message: 'Success' });
+      } else {
         res.status(200).json({ message: 'Success' });
       }
     }, function(err) {
