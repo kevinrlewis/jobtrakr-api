@@ -46,6 +46,7 @@ var update_user_profile = require('./func/db/update_user_profile.js');
 var user_exists = require('./func/db/user_exists.js');
 var get_jobs_to_share_by_user_id = require('./func/db/get_jobs_to_share_by_user_id.js');
 var get_users = require('./func/db/get_users.js');
+var add_contact = require('./func/db/add_contact.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -481,17 +482,22 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   console.log('/job body: ', req.body);
 
-  var job_title = req.body.job_title;
-  var company_name = req.body.company_name;
-  var link = req.body.link;
-  var notes = req.body.notes;
-  var type = req.body.type;
-  var attachments = req.body.attachments;
-  var user_id = req.body.user_id;
+  var body = req.body;
+
+  // job specific info
+  var job_title = body.jobTitle;
+  var company_name = body.companyName;
+  var link = body.link;
+  var notes = body.notes;
+  var type = body.type;
+  var attachments = body.files;
+  var user_id = body.userId;
+
+  // persons of contact array
+  var pocs = body.pocs;
 
   if(!is_valid_variable(job_title) || !is_valid_variable(company_name) || !is_valid_variable(link) ||
-    !is_valid_variable(type) || !is_valid_variable(user_id)
-    || (attachments === "" || attachments === undefined)) {
+    !is_valid_variable(type) || !is_valid_variable(user_id) || (attachments === "" || attachments === undefined)) {
     res.status(400).json({ message: 'Bad request.' });
     return;
   // check if parameter id matches the token id
@@ -502,16 +508,39 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
     console.log('/job type: ', type);
     add_job(job_title, company_name, link, notes, type, attachments, user_id, db)
       .then(function(data) {
-        console.log("/job DATA:", data);
-        // return status and message
-        res.status(200).json({ message: 'Success.', data: data });
+        console.log("/job add_job DATA:", data);
+
+        var jobs_id = data.insert_job.jobs_id;
+        var insert_job_data = data.insert_job;
+
+        var len = pocs.length;
+        if(len > 0) {
+          for(var i = 0; i < len; i++) {
+            pocs[i].jobs_id = jobs_id;
+            pocs[i].user_id = user_id;
+          }
+
+          console.log('pocs to add', JSON.stringify(pocs));
+          add_contact(pocs, db)
+            .then(add_contact_data => {
+              console.log("/job add_contact DATA:", add_contact_data);
+              // return status and message
+              res.status(200).json({ message: 'Success.', data:  add_contact_data.insert_contact });
+            }, add_contact_err => {
+              console.log("/job add_contact ERROR:", add_contact_err);
+              // return status and message
+              res.status(500).json({ message: 'Internal server error.' });
+            });
+        } else {
+          // return status and message
+          res.status(200).json({ message: 'Success.', data:  insert_job_data });
+        }
       }, function(err) {
-        console.log("/job ERROR:", err);
+        console.log("/job add_job ERROR:", err);
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
       });
   }
-
 }));
 
 /*
@@ -818,7 +847,7 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.body.jobs_id);
   var form_values = req.body.form_values;
-  console.log(form_values);
+  console.log('/:id/job/update body.form_values:', form_values);
 
   // check if any of the values are null or missing
   if(!is_valid_variable(jobs_id) || !is_valid_variable(form_values)) {
@@ -840,11 +869,13 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
       form_values.link,
       form_values.notes,
       form_values.files,
+      JSON.stringify(form_values.existingContacts),
+      JSON.stringify(form_values.newContacts),
       db
     ).then(function(data) {
       console.log('/:id/job/update DATA:', data);
       // return status and message
-      res.status(200).json({ message: 'Success.', data: data });
+      res.status(200).json({ message: 'Success.', data: data.update_job });
     }, function(err) {
       console.log('/:id/job/update ERROR:', err);
       // return status and message
