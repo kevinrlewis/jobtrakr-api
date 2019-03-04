@@ -14,6 +14,24 @@ var multer = require('multer');
 var multerS3 = require('multer-s3');
 var config = null;
 var sha256 = require('js-sha256');
+var winston = require('winston');
+var logger = winston.createLogger({
+  level: 'info',
+  format: winston.format.combine(
+    winston.format.json(),
+    winston.format.timestamp(),
+    winston.format.prettyPrint()
+  ),
+  defaultMeta: { service: 'user-service' },
+  transports: [
+    //
+    // - Write to all logs with level `info` and below to `combined.log`
+    // - Write all logs error (and below) to `error.log`.
+    //
+    new winston.transports.File({ filename: 'error.log', level: 'error' }),
+    new winston.transports.File({ filename: 'combined.log' })
+  ]
+});
 var AWS = require('aws-sdk');
 if(process.env.NODE_ENV === 'prod') {
   AWS.config.loadFromPath('./aws_cred.json');
@@ -51,11 +69,11 @@ var add_contact = require('./func/db/add_contact.js');
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
 var id_matches = require('./func/op/id_matches.js');
+var create_log = require('./func/op/create_log.js');
 
 // globals
 var jwtExp = 86400;
 var port = 3000;
-var logt = 'index';
 
 const homedir = require('os').homedir();
 const S3 = new AWS.S3();
@@ -67,12 +85,12 @@ var upload = multer({
     s3: S3,
     bucket: S3_FILE_BUCKET,
     metadata: function(req, file, cb) {
-      // console.log("metadata", file);
+      // logger.info("metadata", file);
       cb(null, { fieldName: file.originalname });
     },
     key: function(req, file, cb) {
-      console.log(file);
-      console.log('sha256 s3 path: ', sha256('files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
+      logger.info(file);
+      logger.info('sha256 s3 path: ', sha256('files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
       cb(null, sha256('files/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
     }
   })
@@ -84,12 +102,12 @@ var profile_image_upload = multer({
     s3: S3,
     bucket: S3_FILE_BUCKET,
     metadata: function(req, file, cb) {
-      // console.log("metadata", file);
+      // logger.info("metadata", file);
       cb(null, { fieldName: file.originalname });
     },
     key: function(req, file, cb) {
-      console.log(file);
-      console.log('sha256 s3 path: ', sha256('profile_images/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
+      logger.info(file);
+      logger.info('sha256 s3 path: ', sha256('profile_images/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
       cb(null, sha256('profile_images/' + req.user.sub + "/" + Date.now().toString() + "/" + file.originalname));
     }
   })
@@ -100,10 +118,15 @@ app.use(helmet());
 app.use(bodyParser.urlencoded({ limit: '50mb', extended: true, parameterLimit: 1000000 }));
 app.use(bodyParser.json({ limit: '50mb', extended: true }));
 app.use(cookieParser());
+app.use(compression());
 
 // setup database configuration
-if(process.env.NODE_ENV != 'prod') {
-  console.log('DEV DB CONFIG');
+if(process.env.NODE_ENV !== 'production') {
+  logger.add(new winston.transports.Console({
+    format: winston.format.simple()
+  }));
+
+  logger.log(create_log('info', 'DEV DB CONFIG'));
   cn = {
     host: config.dev.host,
     port: config.dev.port,
@@ -112,7 +135,7 @@ if(process.env.NODE_ENV != 'prod') {
     password: config.dev.password
   };
 } else {
-  console.log('PROD DB CONFIG');
+  logger.log(create_log('info', 'PROD DB CONFIG'));
   cn = {
     host: config.host,
     port: config.port,
@@ -175,11 +198,11 @@ router.post('/login', asyncHandler ( (req, res) => {
     .then(function(data) {
       // if the user could not be validated
       if(data.validate_user === null) {
-        console.log(logt, 'could not validate login');
+        logger.info('/login: could not validate login');
         res.status(401).json({ message: 'Unauthorized' });
       // if the login_user returned user data
       } else if(data.validate_user !== null) {
-        // console.log(data.validate_user.user_id);
+        // logger.info(data.validate_user.user_id);
         var user_id = data.validate_user.user_id;
 
         var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
@@ -199,37 +222,19 @@ router.post('/login', asyncHandler ( (req, res) => {
 
       // if there was another reason the user could not login
       } else {
-        console.log(logt, 'failed to validate login for another reason');
+          logger.log(create_log('error', ('/login: failed to validate login for another reason')));
         res.status(500).json({ message: 'Internal server error.' });
       }
     // on login_user reject
     // cause: query_error, user_does_not_exist
     }, function(err) {
-      console.log(logt, 'error:', err.message);
+      logger.log(create_log('error', ('/login: error: ' + err.message)));
       if(err.message === 'user_does_not_exist') {
         res.status(404).json({ message: 'User does not exist.' });
       } else {
         res.status(500).json({ message: 'Internal server error.' });
       }
-    })
-
-  // if() {
-  //   var userId = 1;
-  //
-  //   var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
-  //     algorithm: 'RS256',
-  //     expiresIn: 120,
-  //     subject: userId
-  //   });
-  //
-  //   res.status(200).json({
-  //     idToken: jwtBearerToken,
-  //     expiresIn: 120
-  //   });
-  // } else {
-  //   res.status(401).send('Unauthorized');
-  // }
-
+    });
 }));
 
 /*
@@ -260,7 +265,7 @@ router.post('/signup', asyncHandler( (req, res) => {
         get_user(email, db)
           // retrieve user data from promise
           .then(function(data) {
-            console.log("DATA:", data);
+            logger.info("/signup DATA:", data);
             var jwtBearerToken = jwt.sign({}, RSA_PRIVATE_KEY, {
               algorithm: 'RS256',
               expiresIn: jwtExp,
@@ -273,8 +278,8 @@ router.post('/signup', asyncHandler( (req, res) => {
               lastname: data.get_user.lastname
             };
 
-            // console.log('environemnt: ', process.env.NODE_ENV);
-            // console.log(process.env.NODE_ENV === 'prod' ? true : false);
+            // logger.info('environemnt: ', process.env.NODE_ENV);
+            // logger.info(process.env.NODE_ENV === 'prod' ? true : false);
             // set cookie for the response, return 201, and a message
             res.cookie("SESSIONID", jwtBearerToken, {
                 httpOnly:(process.env.NODE_ENV === 'prod' ? true : false),
@@ -284,16 +289,18 @@ router.post('/signup', asyncHandler( (req, res) => {
               .json({ message: 'User created.', data: dataDisplay });
           // if helper function returns an error
           }, function(err) {
-            console.log(err);
+              logger.log(create_log('error', ("/signup " + err)));
             res.status(500).json({ message: 'Internal server error.' });
           });
       // on error then determine error
       }, function(err) {
         // if the user already exists return 409 conflict code
         if(err.message === 'user_exists') {
+          logger.info('/signup', err);
           res.status(409).json({ message: 'User already exists.' });
         // other errors
         } else {
+          logger.log(create_log('error', ('/signup ' + err)));
           res.status(500).json({ message: 'Internal server error.'});
         }
       });
@@ -309,6 +316,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
 
   // check if any of the values are null or missing
   if(!is_valid_variable(id)) {
+    logger.info('/user/id/:id', 'invalid variable');
     // if values are null then the request was bad
     res.status(400).json({ message: 'Bad request.' });
     return;
@@ -321,7 +329,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
     // call get_user db helper function
     get_user_by_id(id, db)
       .then(function(data) {
-        console.log("/user/id/:id DATA:", data);
+        logger.info("/user/id/:id DATA:", data);
         // return status and message
         res.status(200).json({ message: 'Success.', data: data.get_user_by_id });
 
@@ -330,7 +338,7 @@ router.get('/user/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
         res.status(500).json({ message: 'Internal server error.' });
       })
       .catch(function(error) {
-        console.log("get_user_by_id PROMISE ERROR:", error);
+        logger.log(create_log('error', ("get_user_by_id PROMISE ERROR: " + error)));
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
       });
@@ -362,7 +370,7 @@ router.post('/users', checkIfAuthenticated, asyncHandler((req, res, next) => {
     // call get_user db helper function
     get_users(amount, db)
       .then(function(data) {
-        console.log("DATA:", data);
+        logger.info("DATA:", data);
         // return status and message
         res.status(200).json({ message: 'Success.', data: data.get_users });
       }, function(err) {
@@ -370,7 +378,7 @@ router.post('/users', checkIfAuthenticated, asyncHandler((req, res, next) => {
         res.status(500).json({ message: 'Internal server error.' });
       })
       .catch(function(error) {
-        console.log("get_users PROMISE ERROR:", error);
+        logger.log(create_log('error', ("get_users PROMISE ERROR: " + error)));
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
       });
@@ -382,7 +390,7 @@ router.post('/users', checkIfAuthenticated, asyncHandler((req, res, next) => {
   in the database
 */
 router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHandler( (req, res, next) => {
-  console.log("FILES:", req.files);
+  logger.info("FILES:", req.files);
 
   var filesArray = req.files;
   var type = req.body.type;
@@ -396,7 +404,7 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
     // possibly move them to another location and delete them locally
     async.each(filesArray,
       function(file, next) {
-        console.log("FILE: ", file);
+        logger.info("FILE: ", file);
         // call helper function, send db connection
         add_file(
           file.originalname,
@@ -414,18 +422,18 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
             next(file.key);
           // on error then determine error
           }, function(err) {
-            console.log(err);
+            logger.info(err);
             res.status(500).json({ message: 'Internal server error.' });
           });
       },
       // check if there was an error during the upload process
       function(filename, err) {
-        console.log("FILENAME:", filename);
+        logger.info("FILENAME:", filename);
         if(err) {
-          console.log("Error occurred in each", err);
+          logger.log(create_log('error', ("Error occurred in each " + err)));
           res.status(500).json({ message: 'Internal server error.' });
         } else {
-          console.log("finished processing");
+          logger.info("finished processing");
           res.status(200).json({ message: 'Files uploaded successfully.', file: filename });
         }
       }
@@ -442,7 +450,7 @@ router.post('/upload', checkIfAuthenticated, upload.array('files', 10), asyncHan
       user_id: user to attach image to
 */
 router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.single('profile_image', 1), asyncHandler( (req, res, next) => {
-  console.log("FILE:", req.file);
+  logger.info("FILE:", req.file);
 
   var file = req.file;
   var user_id = req.body.user_id;
@@ -470,7 +478,7 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
         res.status(200).json({ message: 'Success.', file: file.key });
       // on error then determine error
       }, function(err) {
-        console.log(err);
+        logger.log(create_log('error', ('/upload-profile-image ' + err)));
         res.status(500).json({ message: 'Internal server error.' });
       });
   }
@@ -480,7 +488,7 @@ router.post('/upload-profile-image', checkIfAuthenticated, profile_image_upload.
   endpoint to add a job
 */
 router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  console.log('/job body: ', req.body);
+  logger.info('/job body: ', req.body);
 
   var body = req.body;
 
@@ -505,10 +513,10 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
     res.status(401).json({ message: 'Unauthorized.' });
     return;
   } else {
-    console.log('/job type: ', type);
+    logger.info('/job type: ', type);
     add_job(job_title, company_name, link, notes, type, attachments, user_id, db)
       .then(function(data) {
-        console.log("/job add_job DATA:", data);
+        logger.info("/job add_job DATA:", data);
 
         var jobs_id = data.insert_job.jobs_id;
         var insert_job_data = data.insert_job;
@@ -520,14 +528,14 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
             pocs[i].user_id = user_id;
           }
 
-          console.log('pocs to add', JSON.stringify(pocs));
+          logger.info('pocs to add', JSON.stringify(pocs));
           add_contact(pocs, db)
             .then(add_contact_data => {
-              console.log("/job add_contact DATA:", add_contact_data);
+              logger.info("/job add_contact DATA:", add_contact_data);
               // return status and message
               res.status(200).json({ message: 'Success.', data:  add_contact_data.insert_contact });
             }, add_contact_err => {
-              console.log("/job add_contact ERROR:", add_contact_err);
+              logger.info("/job add_contact ERROR:", add_contact_err);
               // return status and message
               res.status(500).json({ message: 'Internal server error.' });
             });
@@ -536,7 +544,7 @@ router.post('/job', checkIfAuthenticated, asyncHandler( (req, res, next) => {
           res.status(200).json({ message: 'Success.', data:  insert_job_data });
         }
       }, function(err) {
-        console.log("/job add_job ERROR:", err);
+        logger.log(create_log('error', ("/job add_job ERROR: " + err)));
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
       });
@@ -561,14 +569,14 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
     // res.status(401).json({ message: 'Unauthorized.' });
     get_jobs_to_share_by_user_id(id, db)
       .then(data => {
-        console.log("/job/id/:id DATA:", data);
+        logger.info("/job/id/:id DATA:", data);
 
         // return status and message
         res.status(200).json({ message: 'Success.', data: data.get_jobs_to_share_by_user_id });
         return;
       },
       err => {
-        console.log("/job/id/:id ERROR:", err);
+        logger.log(create_log('error', ("/job/id/:id ERROR: " + err)));
 
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
@@ -580,7 +588,7 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
     get_jobs_by_user_id(id, db)
       // on success
       .then(data => {
-        console.log("/job/id/:id DATA:", data);
+        logger.info("/job/id/:id DATA:", data);
 
         // return status and message
         res.status(200).json({ message: 'Success.', data: data.get_jobs_by_user_id });
@@ -588,7 +596,7 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
       // on failure
       },
       err => {
-        console.log("/job/id/:id ERROR:", err);
+        logger.log(create_log('error', ("/job/id/:id ERROR: " + err)));
 
         // return status and message
         res.status(500).json({ message: 'Internal server error.' });
@@ -601,7 +609,7 @@ router.get('/job/id/:id', checkIfAuthenticated, asyncHandler( (req, res, next) =
   update job for user under jobs_id where job_type is
 */
 router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  console.log("PARAMS:", req.params);
+  logger.info("PARAMS:", req.params);
   // variables from url
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.params.jobs_id);
@@ -621,10 +629,10 @@ router.post('/:id/job/:jobs_id/update/:job_type_id', checkIfAuthenticated, async
     // call db function
     update_job_type(user_id, jobs_id, job_type_id, db)
       .then(function(data) {
-        console.log("/job/:id/update/:job_id/:job_type_id DATA:", data);
+        logger.info("/job/:id/update/:job_id/:job_type_id DATA:", data);
         res.status(200).json({ message: 'Success.' });
       }, function(err) {
-        console.log("/job/:id/update/:job_id/:job_type_id ERROR:", err);
+        logger.log(create_log('error', ("/job/:id/update/:job_id/:job_type_id ERROR: " + err)));
         res.status(500).json({ message: 'Internal server error.' });
       });
   }
@@ -657,7 +665,7 @@ router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, ne
       jobs_id,
       db
     ).then(function(data) {
-      console.log('/:id/delete/job DATA:', data);
+      logger.info('/:id/delete/job DATA:', data);
 
       var fileNamesArr = data.delete_job;
       var objects = [];
@@ -675,21 +683,21 @@ router.post("/:id/delete/job", checkIfAuthenticated, asyncHandler( (req, res, ne
         S3.deleteObjects(params, function(err, data) {
           // if there was an error deleting the s3 object then return 500
           if(err) {
-            console.log('/:id/delete/job S3 ERR:', err);
+            logger.log(create_log('error', ('/:id/delete/job S3 ERR: ' + err)));
             res.status(500).json({ message: 'Internal server error.' });
             return;
           }
 
           // log success and return success
-          console.log('/:id/delete/job S3 DATA: ', data);
+          logger.info('/:id/delete/job S3 DATA: ', data);
         });
-        console.log('/:id/delete/job: JOB DELETED SUCCESSFULLY');
+        logger.info('/:id/delete/job: JOB DELETED SUCCESSFULLY');
         res.status(200).json({ message: 'Success' });
       } else {
         res.status(200).json({ message: 'Success' });
       }
     }, function(err) {
-      console.log('/:id/delete/job ERROR:', err);
+      logger.log(create_log('error', ('/:id/delete/job ERROR: ' + err)));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -734,7 +742,7 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
       clause,
       db
     ).then(function(data) {
-      console.log('/:id/delete/jobs DATA:', data);
+      logger.info('/:id/delete/jobs DATA:', data);
 
       //
       var fileNamesArr = data.delete_jobs;
@@ -753,19 +761,19 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
         S3.deleteObjects(params, function(err, data) {
           // if there was an error deleting the s3 object then return 500
           if(err) {
-            console.log('/:id/delete/jobs S3 ERR:', err);
+            logger.log(create_log('error', ('/:id/delete/jobs S3 ERR: ' + err)));
             res.status(500).json({ message: 'Internal server error.' });
             return;
           }
 
           // log success and return success
-          console.log('/:id/delete/jobs S3 DATA: ', data);
+          logger.info('/:id/delete/jobs S3 DATA: ', data);
         });
       }
-      console.log('/:id/delete/jobs: JOB(S) DELETED SUCCESSFULLY');
+      logger.info('/:id/delete/jobs: JOB(S) DELETED SUCCESSFULLY');
       res.status(200).json({ message: 'Success' });
     }, function(err) {
-      console.log('/:id/delete/jobs ERROR:', err);
+      logger.log(create_log('error', ('/:id/delete/jobs ERROR: ' + err));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -780,12 +788,12 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
       - jobs_id
 */
 router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, next) => {
-  console.log('/:id/delete/file BODY:', req.body);
+  logger.info('/:id/delete/file BODY:', req.body);
   var user_id = parseInt(req.params.id);
   var file_name = req.body.file_name;
   var jobs_id = parseInt(req.body.jobs_id);
 
-  console.log(req.body.file_name.length);
+  logger.info(req.body.file_name.length);
 
   // check if any of the values are null or missing
   if(!is_valid_variable(user_id) || !is_valid_variable(file_name) || !is_valid_variable(jobs_id)) {
@@ -815,23 +823,23 @@ router.post('/:id/delete/file', checkIfAuthenticated, asyncHandler( (req, res, n
           S3.deleteObject(params, function(err, data) {
             // if there was an error deleting the s3 object then return 500
             if(err) {
-              console.log('/:id/delete/file ERR:', err);
+              logger.log(create_log('error', ('/:id/delete/file ERR: ' + err)));
               res.status(500).json({ message: 'Internal server error.' });
               return;
             }
 
             // log s3 data
-            console.log('/:id/delete/file S3 DATA: ', data);
+            logger.info('/:id/delete/file S3 DATA: ', data);
           });
         // on error then determine error
         }, function(err) {
-          console.log(err);
+          logger.log(create_log('error', ('/:id/delete/file ', err)));
           res.status(500).json({ message: 'Internal server error.' });
         });
     });
 
     // log success and return success
-    console.log('/:id/delete/file: FILE(S) DELETED SUCCESSFULLY');
+    logger.info('/:id/delete/file: FILE(S) DELETED SUCCESSFULLY');
     res.status(200).json({ message: 'Success' });
   }
 }));
@@ -847,7 +855,7 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
   var user_id = parseInt(req.params.id);
   var jobs_id = parseInt(req.body.jobs_id);
   var form_values = req.body.form_values;
-  console.log('/:id/job/update body.form_values:', form_values);
+  logger.info('/:id/job/update body.form_values:', form_values);
 
   // check if any of the values are null or missing
   if(!is_valid_variable(jobs_id) || !is_valid_variable(form_values)) {
@@ -873,11 +881,11 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
       JSON.stringify(form_values.newContacts),
       db
     ).then(function(data) {
-      console.log('/:id/job/update DATA:', data);
+      logger.info('/:id/job/update DATA:', data);
       // return status and message
       res.status(200).json({ message: 'Success.', data: data.update_job });
     }, function(err) {
-      console.log('/:id/job/update ERROR:', err);
+      logger.log(create_log('error', ('/:id/job/update ERROR: ' + err)));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -893,7 +901,7 @@ router.post('/:id/job/update', checkIfAuthenticated, asyncHandler( (req, res, ne
 router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   var user_id = parseInt(req.params.id);
   var form_values = req.body.form_values;
-  console.log(form_values);
+  logger.info(form_values);
 
   // check if any of the values are null or missing
   if(!is_valid_variable(form_values)) {
@@ -923,11 +931,11 @@ router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res
       is_private,
       db
     ).then(function(data) {
-      console.log('/:id/share/update DATA:', data);
+      logger.info('/:id/share/update DATA:', data);
       // return status and message
       res.status(200).json({ message: 'Success.', data: data });
     }, function(err) {
-      console.log('/:id/share/update ERROR:', err);
+      logger.log(create_log('error', ('/:id/share/update ERROR: ' + err)));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -943,7 +951,7 @@ router.post('/:id/sharing/update', checkIfAuthenticated, asyncHandler( (req, res
 router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res, next) => {
   var user_id = parseInt(req.params.id);
   var form_values = req.body.form_values;
-  console.log(form_values);
+  logger.info(form_values);
 
   // check if any of the values are null or missing
   if(!is_valid_variable(form_values)) {
@@ -961,7 +969,7 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
       form_values.email,
       db
     ).then(data => {
-      console.log(data);
+      logger.info(data);
       if(data.result) {
         // return status and message
         res.status(409).json({ message: 'User exists.' });
@@ -976,17 +984,17 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
           form_values.bio,
           db
         ).then(function(data) {
-          console.log('/:id/profile/update DATA:', data);
+          logger.info('/:id/profile/update DATA:', data);
           // return status and message
           res.status(200).json({ message: 'Success.', data: data });
         }, function(err) {
-          console.log('/:id/profile/update ERROR:', err);
+          logger.log(create_log('error', ('/:id/profile/update ERROR: ' + err)));
           // return status and message
           res.status(500).json({ message: 'Internal server error.' });
         });
       }
     }, err => {
-      console.log('/:id/profile/update ERROR:', err);
+      logger.log(create_log('error', ('/:id/profile/update ERROR: ' + err)));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
@@ -997,9 +1005,9 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
 
 // error handling
 router.use(function (err, req, res, next) {
-  console.log('-----------------------------------------------');
-  // console.error("ERROR ROUTE:", err.stack);
-  console.log(err);
+  logger.info('-----------------------------------------------');
+  // logger.error("ERROR ROUTE:", err.stack);
+  logger.info(err);
   if(err.status === 401) {
     res.status(401).json('Unauthorized.');
     return;
@@ -1007,15 +1015,15 @@ router.use(function (err, req, res, next) {
     res.status(500).json('Internal server error.');
     return;
   }
-  console.log('-----------------------------------------------');
+  logger.info('-----------------------------------------------');
 });
 
 // missing routes
 router.use(function (req, res, next) {
-  console.log('-----------------------------------------------');
-  console.log('404 route');
-  console.log(req.url);
-  console.log('-----------------------------------------------');
+  logger.info('-----------------------------------------------');
+  logger.info('404 route');
+  logger.info(req.url);
+  logger.info('-----------------------------------------------');
   res.status(404).json("Sorry can't find that!")
 });
 
@@ -1023,4 +1031,4 @@ router.use(function (req, res, next) {
 app.use('/api', router);
 
 // listen to port
-app.listen(port, () => console.log(`App listening on port ${port}!`));
+app.listen(port, () => logger.log(create_log('info', `App listening on port ${port}!`)));

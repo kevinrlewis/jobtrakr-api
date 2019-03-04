@@ -1,3 +1,5 @@
+# docker build --no-cache -t jobtrakr-api -f ./jobtrakr-api/Dockerfile .
+
 # STEP 1 build static website
 # install initial environment reqs
 FROM node:alpine as builder
