@@ -773,7 +773,7 @@ router.post("/:id/delete/jobs", checkIfAuthenticated, asyncHandler( (req, res, n
       logger.info('/:id/delete/jobs: JOB(S) DELETED SUCCESSFULLY');
       res.status(200).json({ message: 'Success' });
     }, function(err) {
-      logger.log(create_log('error', ('/:id/delete/jobs ERROR: ' + err));
+      logger.log(create_log('error', ('/:id/delete/jobs ERROR: ' + err)));
       // return status and message
       res.status(500).json({ message: 'Internal server error.' });
     });
