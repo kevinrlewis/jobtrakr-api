@@ -65,6 +65,7 @@ var user_exists = require('./func/db/user_exists.js');
 var get_jobs_to_share_by_user_id = require('./func/db/get_jobs_to_share_by_user_id.js');
 var get_users = require('./func/db/get_users.js');
 var add_contact = require('./func/db/add_contact.js');
+var delete_user = require('./func/db/delete_user.js');
 
 // helper functions
 var is_valid_variable = require('./func/op/is_valid_variable.js');
@@ -1001,6 +1002,31 @@ router.post('/:id/profile/update', checkIfAuthenticated, asyncHandler( (req, res
   }
 }));
 
+/*
+  route to delete a user
+*/
+router.post('/delete/:id', checkIfAuthenticated, asyncHandler( (req, res, next) => {
+  var user_id = parseInt(req.params.id);
+
+  // check if parameter id matches the token id
+  if(!id_matches(user_id, req.cookies.SESSIONID)) {
+    res.status(401).json({ message: 'Unauthorized.' });
+    return;
+  // attempt to delete user
+  } else {
+    delete_user(user_id, db)
+      .then(data => {
+        logger.info('/delete/:id DATA:', data);
+        // return status and message
+        res.status(200).json({ message: 'Success.' })
+      }, err => {
+        console.log('/delete/:id ERR:', err);
+        logger.log(create_log('error', ('/delete/:id ERROR: ' + err)));
+        // return status and message
+        res.status(500).json({ message: 'Internal server error.' });
+      });
+  }
+}));
 
 
 // error handling
