@@ -1,3 +1,3 @@
 #!/bin/bash
 cd /var/jobtrakr-api
-pm2 restart index.js
+sudo -u ec2-user pm2 restart index.js
