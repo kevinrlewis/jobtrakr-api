@@ -78,7 +78,7 @@ var port = 3000;
 
 const homedir = require('os').homedir();
 const S3 = new AWS.S3();
-const S3_FILE_BUCKET = (process.env.NODE_ENV === 'prod' ? 'jobtrak-prod' : 'jobtrak');
+const S3_FILE_BUCKET = (process.env.NODE_ENV === 'production' ? 'jobtrak-prod' : 'jobtrak');
 
 // handle files attached to jobs
 var upload = multer({
