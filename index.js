@@ -15,6 +15,7 @@ var multerS3 = require('multer-s3');
 var config = null;
 var sha256 = require('js-sha256');
 var winston = require('winston');
+var puppeteer = require('puppeteer');
 var logger = winston.createLogger({
   level: 'info',
   format: winston.format.combine(
@@ -71,6 +72,7 @@ var delete_user = require('./func/db/delete_user.js');
 var is_valid_variable = require('./func/op/is_valid_variable.js');
 var id_matches = require('./func/op/id_matches.js');
 var create_log = require('./func/op/create_log.js');
+var scrape = require('./func/op/scrape.js');
 
 // globals
 var jwtExp = 86400;
@@ -1027,6 +1029,14 @@ router.post('/delete/:id', checkIfAuthenticated, asyncHandler( (req, res, next) 
       });
   }
 }));
+
+router.post('/scrape', checkIfAuthenticated, async(req, res, next) => {
+  var link = req.body.link;
+
+  scrape(link).then((value) => {
+    res.status(200).json({ message: 'Success', data: value });
+  })
+});
 
 
 // error handling
